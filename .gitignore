@@ -1,0 +1,10 @@
+.dev.vars
+.env
+.env.*
+node_modules/
+public/
+!.gitkeep
+.wrangler/
+coverage/
+playwright-report/
+test-results/

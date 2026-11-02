@@ -1,0 +1,6 @@
+name = "sg-transit-api"
+main = "index.js"
+compatibility_date = "2026-09-01"
+[vars]
+# For production, replace '*' with your GitHub Pages origin, e.g. https://username.github.io
+ALLOWED_ORIGIN = "*"

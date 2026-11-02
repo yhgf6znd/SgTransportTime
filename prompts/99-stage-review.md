@@ -1,0 +1,3 @@
+# Reusable stage review prompt
+
+Review the immediately preceding SG Transit stage against `AGENTS.md` and the corresponding prompt file. Inspect actual changed files and run relevant tests. Identify requirements met vs missing, source/API claims not live verified, data/credential leaks, bad caching, time handling, race conditions, accessibility regressions, Pages routing issues and missing docs. Fix safe issues and rerun tests. Do not weaken or delete tests just to pass. Report commands/results, files changed, unresolved risks and whether the stage is ready to proceed. Do not deploy without approval.

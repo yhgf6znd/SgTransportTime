@@ -1,0 +1,10 @@
+{
+  "name": "SG Transit",
+  "short_name": "SG Transit",
+  "description": "Singapore bus and train arrival search",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f4f7f8",
+  "theme_color": "#0f766e",
+  "icons": [{"src":"icons/icon.svg","sizes":"192x192","type":"image/svg+xml","purpose":"any maskable"}]
+}
