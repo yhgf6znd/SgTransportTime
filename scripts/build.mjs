@@ -7,7 +7,7 @@ const source = resolve(root, 'src');
 const output = resolve(root, 'public');
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
-for (const entry of ['index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'sw.js', '_headers', 'data', 'icons']) {
+for (const entry of ['index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'sw.js', '_headers', 'lib', 'data', 'icons']) {
   await cp(resolve(source, entry), resolve(output, entry), { recursive: true });
 }
 console.log(`Built static Worker assets in ${output}`);
