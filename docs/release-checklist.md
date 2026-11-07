@@ -23,5 +23,5 @@
 - [ ] Test 320, 375, 390, 768, 1024, and 1440px layouts, keyboard navigation, reduced motion, offline shell, and denied location permission.
 - [ ] Confirm arrivals show provider status/timestamp and never claim live data when stale or unavailable.
 - [ ] Verify train station/platform matching from an actual current GTFS sample; do not infer universal MRT/LRT coverage.
-- [ ] Run `npx wrangler pages dev public` with local `.dev.vars` and check `/api/health` plus sanitized provider responses. The current restricted environment compiled the Pages worker but could not open its local socket (`uv_interface_addresses`); rerun on a normal developer machine.
+- [ ] Run `npx wrangler pages dev public` with Node.js 22+ and local `.dev.vars` and check `/api/health` plus sanitized provider responses. The current restricted environment compiled the Pages worker but could not open its local socket (`uv_interface_addresses`); rerun on a normal developer machine.
 - [ ] Deploy only after explicit operator approval; record URL, commit, rollback path, and key rotation contacts.
