@@ -22,3 +22,18 @@ test('accepts a direct ZIP response from the LTA train feed endpoint', async () 
     assert.deepEqual(await ltaFeedBytes('GTFSScheduleTrain', { LTA_ACCOUNT_KEY: 'test' }), feed);
   } finally { globalThis.fetch = originalFetch; }
 });
+
+test('allows the official LTA GTFS temporary download host', async () => {
+  const originalFetch = globalThis.fetch;
+  const feed = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+  let requestCount = 0;
+  globalThis.fetch = async (url) => {
+    requestCount += 1;
+    if (requestCount === 1) return new Response(JSON.stringify({ value: [{ Link: 'https://dmprod-datasets.s3.ap-southeast-1.amazonaws.com/train-gtfs-schedule/gtfs_schedule.zip?X-Amz-Security-Token=test' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    assert.equal(new URL(url).hostname, 'dmprod-datasets.s3.ap-southeast-1.amazonaws.com');
+    return new Response(feed, { status: 200, headers: { 'Content-Type': 'application/octet-stream' } });
+  };
+  try {
+    assert.deepEqual(await ltaFeedBytes('GTFSScheduleTrain', { LTA_ACCOUNT_KEY: 'test' }), feed);
+  } finally { globalThis.fetch = originalFetch; }
+});

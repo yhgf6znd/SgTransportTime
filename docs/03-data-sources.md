@@ -1,8 +1,9 @@
 # Data source verification log
 
-**Verified documentation links on 2026-11-02.** The links and fields below were checked against the current official pages available on that date. No authenticated provider call was made from this repository, so live behavior remains pending.
+**Verified documentation links on 2026-11-08.** The links and fields below were checked against the current official pages available on that date. No authenticated provider call was made from this repository, so live behavior remains pending.
 
 - LTA DataMall datasets: https://datamall.lta.gov.sg/content/datamall/en/dynamic-data.html
+- Local LTA API guide reference: [`docs/reference/LTA_DataMall_API_User_Guide.pdf`](reference/LTA_DataMall_API_User_Guide.pdf), version 6.11 (30 Oct 2026).
 - LTA portal: https://datamall.lta.gov.sg/
 - OneMap API documentation: https://www.onemap.gov.sg/apidocs/
 - OneMap authentication: https://www.onemap.gov.sg/apidocs/authentication
@@ -24,10 +25,13 @@ Dynamic datasets list Bus Arrival, Bus Stops, Bus Services, Bus Routes, GTFS Sch
 
 ### Train feeds
 
-- The official dynamic dataset listing checked 2026-11-02 describes GTFS Schedule (Train), GTFS Realtime (Train Trip Updates), and GTFS Realtime (Train Service Alerts). LTA describes Trip Updates as predictions, delays, cancellations, and skipped stops.
-- The official dataset links currently publish `GTFSScheduleTrain.zip` and `GTFSRealtimeTrainTripUpdates.zip` under LTA's `datamall.lta.gov.sg` site. The authenticated dataset endpoints are `GTFSScheduleTrain` and `GTFSRealtimeTrainTripUpdates`; an unauthenticated probe on 2026-11-08 returned HTTP 401, confirming the routes require the AccountKey. The implementation accepts either a direct ZIP response or JSON metadata containing a temporary `Link`, then applies an exact host allowlist before downloading that link.
+- The official LTA API guide version 6.11 (30 Oct 2026), now retained at `docs/reference/LTA_DataMall_API_User_Guide.pdf`, specifies these endpoints and responses:
+  - `GET https://datamall2.mytransport.sg/ltaodataservice/GTFSScheduleTrain` — GTFS static schedule ZIP via a temporary `Link`.
+  - `GET https://datamall2.mytransport.sg/ltaodataservice/GTFSRealTimeTrainServiceAlerts` — GTFS realtime service-alert protobuf via a temporary `Link`.
+  - `GET https://datamall2.mytransport.sg/ltaodataservice/GTFSRealtimeTrainTripUpdates` — GTFS realtime trip-update protobuf via a temporary `Link`; the guide scopes this feed to train disruptions.
+- All three requests use the `AccountKey` header. The guide’s documented temporary host is `dmprod-datasets.s3.ap-southeast-1.amazonaws.com`, with links expiring after 15 minutes. The implementation applies an exact allowlist for that host and the LTA/Data.gov.sg API hosts; it never follows arbitrary hosts.
 - The implementation parses `stops.txt` and groups platform records using `parent_station`, then decodes only the authorized TripUpdate fields required for station arrivals. It does not assume every listed station or line has realtime coverage.
-- The separate LTA `TrainServiceAlerts` JSON endpoint is used for alerts where the account can access it. Response variants are treated defensively because no authenticated sample is committed.
+- The separate legacy `TrainServiceAlerts` JSON endpoint remains supported for existing alerts; the GTFS service-alert protobuf feed requires a separate decoder before it can replace that path.
 - Feed IDs, platform mapping, current coverage, quotas, and redistribution terms require an authorized sample and are **PENDING**. A missing or empty prediction feed is shown as `unavailable`, never as zero minutes.
 
 ### Important train coverage caveat
