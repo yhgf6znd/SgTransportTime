@@ -25,7 +25,8 @@ Dynamic datasets list Bus Arrival, Bus Stops, Bus Services, Bus Routes, GTFS Sch
 ### Train feeds
 
 - The official dynamic dataset listing checked 2026-11-02 describes GTFS Schedule (Train), GTFS Realtime (Train Trip Updates), and GTFS Realtime (Train Service Alerts). LTA describes Trip Updates as predictions, delays, cancellations, and skipped stops.
-- The implementation obtains feed download links through authenticated LTA dataset metadata, parses `stops.txt` and groups platform records using `parent_station`, then decodes only the authorized TripUpdate fields required for station arrivals. It does not assume every listed station or line has realtime coverage.
+- The official dataset links currently publish `GTFSScheduleTrain.zip` and `GTFSRealtimeTrainTripUpdates.zip` under LTA's `datamall.lta.gov.sg` site. The authenticated dataset endpoints are `GTFSScheduleTrain` and `GTFSRealtimeTrainTripUpdates`; an unauthenticated probe on 2026-11-08 returned HTTP 401, confirming the routes require the AccountKey. The implementation accepts either a direct ZIP response or JSON metadata containing a temporary `Link`, then applies an exact host allowlist before downloading that link.
+- The implementation parses `stops.txt` and groups platform records using `parent_station`, then decodes only the authorized TripUpdate fields required for station arrivals. It does not assume every listed station or line has realtime coverage.
 - The separate LTA `TrainServiceAlerts` JSON endpoint is used for alerts where the account can access it. Response variants are treated defensively because no authenticated sample is committed.
 - Feed IDs, platform mapping, current coverage, quotas, and redistribution terms require an authorized sample and are **PENDING**. A missing or empty prediction feed is shown as `unavailable`, never as zero minutes.
 

@@ -40,13 +40,16 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = 7000) {
   } finally { clearTimeout(timeout); }
 }
 
-export async function readJson(response) {
-  let body;
-  try { body = await response.json(); } catch { throw new ProviderError('UPSTREAM_INVALID', 'The transport provider returned an invalid response.', 502); }
+export async function readJson(response, options = {}) {
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new ProviderError(options.authCode ?? 'UPSTREAM_AUTH', options.authMessage ?? 'The transport provider rejected the configured credentials.', options.authStatus ?? 502);
+    }
     if (response.status === 429) throw new ProviderError('UPSTREAM_RATE_LIMIT', 'The transport provider rate limit was reached. Try again shortly.', 429);
     throw new ProviderError('UPSTREAM_ERROR', 'The transport provider returned an error.', 502);
   }
+  let body;
+  try { body = await response.json(); } catch { throw new ProviderError('UPSTREAM_INVALID', 'The transport provider returned an invalid response.', 502); }
   return body;
 }
 

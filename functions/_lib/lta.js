@@ -11,7 +11,11 @@ export async function ltaJson(path, env, timeoutMs = 7000) {
   const key = requireKey(env);
   const url = new URL(path, LTA_BASE);
   const response = await fetchWithTimeout(url, { headers: { AccountKey: key, Accept: 'application/json' } }, timeoutMs);
-  return readJson(response);
+  return readJson(response, {
+    authCode: 'CONFIGURATION',
+    authMessage: 'LTA rejected the configured AccountKey for this dataset.',
+    authStatus: 503,
+  });
 }
 
 export async function ltaBinary(path, env, timeoutMs = 10000) {
@@ -19,6 +23,7 @@ export async function ltaBinary(path, env, timeoutMs = 10000) {
   const url = new URL(path, LTA_BASE);
   const response = await fetchWithTimeout(url, { headers: { AccountKey: key, Accept: 'application/octet-stream, application/json' } }, timeoutMs);
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) throw new ProviderError('CONFIGURATION', 'LTA rejected the configured AccountKey for this dataset.', 503);
     if (response.status === 429) throw new ProviderError('UPSTREAM_RATE_LIMIT', 'The LTA data limit was reached. Try again shortly.', 429);
     throw new ProviderError('UPSTREAM_ERROR', 'LTA did not provide the requested feed.', 502);
   }
@@ -26,7 +31,24 @@ export async function ltaBinary(path, env, timeoutMs = 10000) {
 }
 
 export async function ltaFeedBytes(dataset, env) {
-  const metadata = await ltaJson(dataset, env);
+  const key = requireKey(env);
+  const url = new URL(dataset, LTA_BASE);
+  const feedResponse = await fetchWithTimeout(url, {
+    headers: { AccountKey: key, Accept: 'application/zip, application/octet-stream, application/json' },
+  }, 12000);
+  if (!feedResponse.ok) {
+    if (feedResponse.status === 401 || feedResponse.status === 403) throw new ProviderError('CONFIGURATION', 'LTA rejected the configured AccountKey for this dataset.', 503);
+    if (feedResponse.status === 429) throw new ProviderError('UPSTREAM_RATE_LIMIT', 'The LTA data limit was reached. Try again shortly.', 429);
+    throw new ProviderError('UPSTREAM_ERROR', 'LTA did not provide the requested train feed.', 502);
+  }
+
+  const contentType = feedResponse.headers.get('content-type')?.toLowerCase() ?? '';
+  const body = new Uint8Array(await feedResponse.arrayBuffer());
+  if (contentType.includes('application/zip') || contentType.includes('application/octet-stream') || (body[0] === 0x50 && body[1] === 0x4b)) return body;
+
+  let metadata;
+  try { metadata = JSON.parse(new TextDecoder().decode(body)); }
+  catch { throw new ProviderError('UPSTREAM_INVALID', 'LTA returned neither a train feed nor a feed download link.', 502); }
   const item = Array.isArray(metadata?.value) ? metadata.value[0] : metadata?.value ?? metadata;
   const link = item?.Link ?? item?.link ?? metadata?.Link ?? metadata?.link;
   if (typeof link !== 'string' || !/^https:\/\//i.test(link)) throw new ProviderError('UPSTREAM_INVALID', 'LTA did not provide a safe feed link.', 502);

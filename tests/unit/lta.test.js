@@ -1,0 +1,24 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { ltaFeedBytes, ltaJson } from '../../functions/_lib/lta.js';
+
+test('reports LTA authentication failures as configuration errors instead of invalid JSON', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response('', { status: 401 });
+  try {
+    await assert.rejects(() => ltaJson('GTFSScheduleTrain', { LTA_ACCOUNT_KEY: 'test' }), (error) => {
+      assert.equal(error.code, 'CONFIGURATION');
+      assert.equal(error.status, 503);
+      return true;
+    });
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('accepts a direct ZIP response from the LTA train feed endpoint', async () => {
+  const originalFetch = globalThis.fetch;
+  const feed = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+  globalThis.fetch = async () => new Response(feed, { status: 200, headers: { 'Content-Type': 'application/zip' } });
+  try {
+    assert.deepEqual(await ltaFeedBytes('GTFSScheduleTrain', { LTA_ACCOUNT_KEY: 'test' }), feed);
+  } finally { globalThis.fetch = originalFetch; }
+});
