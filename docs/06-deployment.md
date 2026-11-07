@@ -1,18 +1,23 @@
-# Cloudflare Pages deployment runbook
+# Cloudflare Workers deployment runbook
 
 1. Register LTA DataMall API access and OneMap account; verify lawful use and quota.
-2. Create GitHub repository from this directory after Codex migration. Do not commit `.dev.vars`, `.env`, API keys or generated private captures.
-3. Cloudflare dashboard > Workers & Pages > create a **Pages** project and connect the repository. Set **Build command** to `npm run build` and **Build output directory** to `public`. Leave any custom **Deploy command** blank: Git-connected Pages automatically deploys the build. Pages Functions live in top-level `functions/`.
-4. Add encrypted Pages environment secrets: `LTA_ACCOUNT_KEY`, and if OneMap Search used, `ONEMAP_EMAIL`, `ONEMAP_PASSWORD`. Use exact chosen binding names consistently.
-5. Configure `_routes.json` to invoke functions only under `/api/*` so static assets avoid function charges; verify actual behavior per current Pages routing docs.
-6. Local development: use Node.js 22 or newer, then run `npm install`, `npm run build`, and `npx wrangler pages dev public`; provide local `.dev.vars` only on your own machine, gitignored. The repository pins Wrangler 4.158.0, which requires Node.js 22 or newer.
-7. Verify `/api/health`, then authorized bus arrival and OneMap search, then verified train data. Test deployed browser network console for no exposed key.
-8. Add tests/checks to GitHub Actions, validate Cloudflare Pages preview vs production bindings/origins. Restrict production deploy to main.
+2. Connect this GitHub repository to a **Workers** project through Workers Builds. Do not commit `.dev.vars`, `.env`, API keys or generated private captures.
+3. Configure the build command as `npm run build` and leave the production deploy command at the Workers default `npx wrangler deploy`. The Wrangler configuration supplies the Worker entrypoint and static asset directory (`worker/index.js` and `public`). Set the root directory to `/` or leave it blank.
+4. Add encrypted Worker environment secrets: `LTA_ACCOUNT_KEY`, and if OneMap Search is used, `ONEMAP_EMAIL`, `ONEMAP_PASSWORD`. Use exact binding names consistently.
+5. Keep `main = "worker/index.js"` and `[assets] directory = "./public"` in `wrangler.toml`. The Worker invokes only `/api/*`; static requests use the `ASSETS` binding.
+6. Local development: use Node.js 22 or newer, then run `npm install`, `npm run build`, and `npm run dev`. Provide local `.dev.vars` only on your own machine, gitignored.
+7. Verify `/api/health`, then authorized bus arrival and OneMap search, then verified train data. Test the deployed browser network console for no exposed key.
+8. Configure Workers Builds to deploy the production branch only after review, with preview command `npx wrangler preview` if previews are enabled. Keep preview bindings separate from production bindings. Do not add a manually managed `CLOUDFLARE_API_TOKEN` unless required; Workers Builds can generate its own build token.
 9. Validate live station coverage, source attribution, quotas, errors, caching, PWA behavior. Document rollback and key rotation.
 
+### Manual Wrangler deployment
 
-### Optional Direct Upload
+For an explicitly authorized manual deployment, run:
 
-For a Direct Upload Pages project, run `npm run deploy:pages` (or `npx wrangler pages deploy public`) after authenticating Wrangler and selecting the Pages project. Do not use `npx wrangler deploy`; that is the Workers command and produces the failure shown in the deployment log. Do not combine a custom Direct Upload command with a Git-integrated Pages project unless automatic deployments are disabled.
+```sh
+npm run deploy
+```
 
-**Important:** local command and deployment steps are templates; check current Wrangler/Pages docs during implementation. A GitHub Pages workflow or separate Worker deployment is NOT the target. Never claim deployed until URL and results confirmed.
+This runs `npm run build && wrangler deploy`, which publishes the Worker and its `public/` assets. Wrangler authentication is required for manual deployment. Do not use `wrangler pages deploy`; that targets Pages rather than this Worker.
+
+**Important:** production deployment and credential setup require operator approval. Never claim deployed until the Worker URL and results are confirmed.

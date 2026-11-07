@@ -1,6 +1,6 @@
 # Security, privacy and abuse protection
 
-- Secret storage: Cloudflare Pages project Settings > Variables and Secrets (encrypted secrets). Local `.dev.vars` gitignored. Never use a `VITE_` / browser-prefixed secret.
+- Secret storage: Cloudflare Worker Settings > Variables and Secrets (encrypted secrets). Local `.dev.vars` gitignored. Never use a `VITE_` / browser-prefixed secret.
 - Accept only known upstream URLs; never proxy arbitrary user-supplied URL or path. Limit query length, pagination and radius; validate stop codes and service formats.
 - Timeouts via AbortController, handle 429/5xx, safe generic user errors; never echo raw upstream errors with auth context. Use HTTPS.
 - Same-origin `/api/` means CORS can remain restrictive; **CORS is not authentication**. Add Cloudflare rate limits/WAF as permitted, upstream caching and reasonable budget protection.

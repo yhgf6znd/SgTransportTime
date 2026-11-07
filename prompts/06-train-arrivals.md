@@ -8,11 +8,11 @@ You are the implementation agent for **SG Transit**, a free MIT-licensed Singapo
 
 First read `AGENTS.md`, `docs/00-product-requirements.md`, `docs/01-architecture.md`, `docs/02-api-contract.md`, `docs/03-data-sources.md`, `docs/04-security-and-privacy.md`, and the relevant `.agents/skills/*/SKILL.md` files.
 
-**Non-negotiable**: One Cloudflare Pages deployment; static HTML/CSS/vanilla JS frontend and Cloudflare Pages Functions under `/functions/api/` for secure authenticated LTA and OneMap calls. No separate Worker, React, Vue, traditional backend, frontend secrets or invented arrival predictions.
+**Non-negotiable**: One Cloudflare Workers deployment; static HTML/CSS/vanilla JS frontend and Worker handlers under `/functions/api/` for secure authenticated LTA and OneMap calls. No separate Pages project, React, Vue, traditional backend, frontend secrets or invented arrival predictions.
 
 ## This stage: Train GTFS Realtime integration and coverage assessment
 
-Verify feed semantics and actual available lines/stations through authorized examples. Decode GTFS Realtime Protocol Buffers, map trip updates to canonical station/platform and schedule, handle feed timestamps, missed/empty updates, staleness and scheduled-only cases. Avoid per-request giant decompression; profile feasible Pages resource constraints. No universal live MRT/LRT claims. Write a coverage matrix and integration tests.
+Verify feed semantics and actual available lines/stations through authorized examples. Decode GTFS Realtime Protocol Buffers, map trip updates to canonical station/platform and schedule, handle feed timestamps, missed/empty updates, staleness and scheduled-only cases. Avoid per-request giant decompression; profile feasible Workers resource constraints. No universal live MRT/LRT claims. Write a coverage matrix and integration tests.
 
 
 

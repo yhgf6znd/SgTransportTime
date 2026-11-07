@@ -4,11 +4,11 @@ You are contributing to SG Transit, an MIT-licensed Singapore public transport a
 
 ## Non-negotiable architecture
 
-- One GitHub repository -> one **Cloudflare Pages** deployment. Frontend = static HTML/CSS/native JS ES modules. Backend = **Pages Functions** using the Workers runtime under `/functions/api/` only. **No separate Worker deployment** and no conventional server.
+- One GitHub repository -> one **Cloudflare Workers** deployment. Frontend = static HTML/CSS/native JS ES modules served from Worker static assets. Backend = one Worker entrypoint under `/worker/` routing `/api/*` to server-side handlers. **No separate Pages deployment** and no conventional server.
 - Avoid frontend frameworks, production databases and build steps unless justified in an ADR. Use relative static paths. Preserve the MIT license.
-- Place source under `src/`, Pages handlers under `functions/api/`, and frontend static output under `public/` or `dist/` (choose one, document it). The `/functions` folder must remain at the project root; do not accidentally publish it as a static asset.
-- Add `_routes.json` or platform-generated equivalent to keep non-API assets out of billable Function invocations; verify routing against current Cloudflare documentation.
-- Only Pages Functions may call authenticated LTA DataMall and OneMap endpoints. Never ship LTA keys, OneMap passwords, access tokens or refresh material in client JS, WASM, HTML, static JSON, service-worker caches, logs or git.
+- Place source under `src/`, API handlers under `functions/api/`, the Worker entrypoint under `worker/`, and frontend static output under `public/`. The Worker serves `public/` through the `ASSETS` binding; do not publish server-side source as static assets.
+- Configure Worker asset routing so `/api/*` invokes the Worker and static assets are served directly; verify `assets.run_worker_first` against current Cloudflare documentation.
+- Only the Worker runtime may call authenticated LTA DataMall and OneMap endpoints. Never ship LTA keys, OneMap passwords, access tokens or refresh material in client JS, WASM, HTML, static JSON, service-worker caches, logs or git.
 - Never invent bus or train arrival estimates, line identities, destinations, predictions or schedule coverage. Distinguish LIVE/PREDICTED, SCHEDULED, STALE and UNAVAILABLE.
 
 ## Source reliability
@@ -37,5 +37,5 @@ You are contributing to SG Transit, an MIT-licensed Singapore public transport a
 ## Deployment constraints
 
 - Manual confirmation required for live credential setup and production deploy. Do not print secret values. `.dev.vars` and `.env` files with real values must be gitignored.
-- Use official Pages Git integration or Pages deployment action. Distinguish build-time frontend config (public) from secret environment bindings (private).
+- Use official Workers Builds/Git integration or an explicitly authorized Wrangler deployment. Distinguish build-time frontend config (public) from secret environment bindings (private).
 - Security controls: input limits, outbound host allowlist, HTTP timeouts, correct CORS without treating CORS as auth, quota/abuse protection, safe logs, no publicly available secret-bearing responses.

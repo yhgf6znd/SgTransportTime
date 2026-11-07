@@ -1,4 +1,4 @@
-# Prompt 01 — Migrate legacy to one Cloudflare Pages project
+# Prompt 01 — Migrate legacy to one Cloudflare Workers project
 
 Paste all text below into Cursor + Codex as a **single prompt** after prior stages are completed.
 
@@ -8,11 +8,11 @@ You are the implementation agent for **SG Transit**, a free MIT-licensed Singapo
 
 First read `AGENTS.md`, `docs/00-product-requirements.md`, `docs/01-architecture.md`, `docs/02-api-contract.md`, `docs/03-data-sources.md`, `docs/04-security-and-privacy.md`, and the relevant `.agents/skills/*/SKILL.md` files.
 
-**Non-negotiable**: One Cloudflare Pages deployment; static HTML/CSS/vanilla JS frontend and Cloudflare Pages Functions under `/functions/api/` for secure authenticated LTA and OneMap calls. No separate Worker, React, Vue, traditional backend, frontend secrets or invented arrival predictions.
+**Non-negotiable**: One Cloudflare Workers deployment; static HTML/CSS/vanilla JS frontend and Worker handlers under `/functions/api/` for secure authenticated LTA and OneMap calls. No separate Pages project, React, Vue, traditional backend, frontend secrets or invented arrival predictions.
 
-## This stage: Migrate legacy to one Cloudflare Pages project
+## This stage: Migrate legacy to one Cloudflare Workers project
 
-Move usable frontend assets to the chosen static output directory and migrate legacy separate-Worker route logic into root `functions/api/` Pages handlers and `functions/_lib/` utilities. Remove separate Worker deployment dependencies. Add `package.json`, local Wrangler Pages dev command, appropriate `_routes.json` and a healthy `/api/health` endpoint. Ensure only `/api/*` triggers Functions and static site loads.
+Move usable frontend assets to the chosen static output directory and migrate legacy separate-Worker route logic into root `functions/api/` Worker handlers and `functions/_lib/` utilities. Remove separate Pages deployment dependencies. Add `package.json`, local Wrangler dev command, appropriate Worker routing and a healthy `/api/health` endpoint. Ensure only `/api/*` triggers the Worker and static site loads.
 
 
 

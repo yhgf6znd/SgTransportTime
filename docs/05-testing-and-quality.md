@@ -8,7 +8,7 @@
 
 ## Quality gates
 - One change per prompt; tests and lint pass; no false confidence from mocked data; explicit incomplete checklist.
-- Use Node test/Vitest and Playwright where justified; run wrangler Pages local dev to validate routing and env bindings.
+- Use Node test/Vitest and Playwright where justified; run `npm run dev` to validate Worker routing and env bindings.
 - At least 320, 375, 390, 768, 1024 px widths; keyboard and screen reader considerations; offline, reduced motion and high latency.
 - CI secretless and deterministic. Dependabot/audit if useful, version-lock actions as appropriate.
 - Manual acceptance: actual clock timestamp and feed freshness; permission denial; no API credentials visible in browser devtools or built artifacts.

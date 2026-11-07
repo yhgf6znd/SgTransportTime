@@ -8,11 +8,11 @@ You are the implementation agent for **SG Transit**, a free MIT-licensed Singapo
 
 First read `AGENTS.md`, `docs/00-product-requirements.md`, `docs/01-architecture.md`, `docs/02-api-contract.md`, `docs/03-data-sources.md`, `docs/04-security-and-privacy.md`, and the relevant `.agents/skills/*/SKILL.md` files.
 
-**Non-negotiable**: One Cloudflare Pages deployment; static HTML/CSS/vanilla JS frontend and Cloudflare Pages Functions under `/functions/api/` for secure authenticated LTA and OneMap calls. No separate Worker, React, Vue, traditional backend, frontend secrets or invented arrival predictions.
+**Non-negotiable**: One Cloudflare Workers deployment; static HTML/CSS/vanilla JS frontend and Worker handlers under `/functions/api/` for secure authenticated LTA and OneMap calls. No separate Pages project, React, Vue, traditional backend, frontend secrets or invented arrival predictions.
 
 ## This stage: PWA and offline correctness
 
-Installable manifest/icons, service worker caching static shell and versioned station catalogue where legal. Safe update flow and GitHub/Cloudflare Pages root-relative handling; cached favourites offline. Never cache/expose auth responses or present stale train/bus countdowns as live. Test offline, update and service worker fallback.
+Installable manifest/icons, service worker caching static shell and versioned station catalogue where legal. Safe update flow and GitHub/Cloudflare Workers root-relative handling; cached favourites offline. Never cache/expose auth responses or present stale train/bus countdowns as live. Test offline, update and service worker fallback.
 
 
 

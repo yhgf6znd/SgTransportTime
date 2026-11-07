@@ -1,6 +1,6 @@
 # SG Transit — Singapore arrivals PWA
 
-An MIT-licensed, no-framework Singapore bus and MRT/LRT arrivals PWA for a **single Cloudflare Pages project**. The authored frontend is in `src/` and a copy-only `npm run build` publishes `public/`; authenticated providers are accessed only by root `functions/` Pages Functions.
+An MIT-licensed, no-framework Singapore bus and MRT/LRT arrivals PWA for a **single Cloudflare Workers project**. The authored frontend is in `src/` and a copy-only `npm run build` publishes `public/`; authenticated providers are accessed only through the Worker entrypoint and server-side handlers.
 
 ## Local development
 
@@ -9,10 +9,10 @@ npm install
 npm test
 npm run lint
 npm run build
-npx wrangler pages dev public
+npm run dev
 ```
 
-For a Direct Upload Pages project, use `npm run deploy:pages`. For a Git-connected Pages project, configure the dashboard with `npm run build` and `public`, and leave the custom deploy command empty. Do not use `npx wrangler deploy`; that command targets Workers rather than Pages.
+For Workers Builds, configure `npm run build` and keep the default deploy command `npx wrangler deploy`; the standard Workers deployment reads `wrangler.toml`. For an explicitly authorized manual deployment, use `npm run deploy`. Do not use Pages-specific Wrangler commands.
 
 For live local requests, create a gitignored `.dev.vars` with `LTA_ACCOUNT_KEY` and/or `ONEMAP_EMAIL` plus `ONEMAP_PASSWORD`. Never put credentials in frontend files or commit that file. Without credentials, deterministic tests still run but live provider features correctly return configuration/unavailable states.
 
@@ -22,10 +22,10 @@ For live local requests, create a gitignored `.dev.vars` with `LTA_ACCOUNT_KEY` 
 2. Read `AGENTS.md` and `docs/00-product-requirements.md`.
 3. Open Codex in Cursor and paste `prompts/00-bootstrap.md` (the full file contents). Continue with `01` through `15` **in order**, one at a time. Use `prompts/99-stage-review.md` after each stage.
 4. The older runnable prototype is preserved under `legacy/sg-transit-app/`; see `docs/legacy-audit.md`. **Do not deploy the old Worker as-is.**
-5. Obtain your own LTA DataMall key and OneMap account. Put secrets only in Cloudflare encrypted Pages environment variables (or gitignored local `.dev.vars`), not chat, git, JS or WASM.
+5. Obtain your own LTA DataMall key and OneMap account. Put secrets only in Cloudflare encrypted Worker environment variables (or gitignored local `.dev.vars`), not chat, git, JS or WASM.
 6. Every stage must end with test results and a list of anything that still needs real credentials. Do not mark live LTA/OneMap validation complete on mocks alone.
 
-**The repository code is implemented, but not live-verified or deployed.** Provider credentials, Pages project setup, and authorized smoke tests remain release tasks.
+**The repository code is implemented, but not live-verified or deployed.** Provider credentials, Workers project setup, and authorized smoke tests remain release tasks.
 
 ## Runtime behavior
 
@@ -41,11 +41,11 @@ For live local requests, create a gitignored `.dev.vars` with `LTA_ACCOUNT_KEY` 
 - `docs/`: product, architecture, data contracts, security, testing, deployment, checkpoints and API-source verification.
 - `prompts/`: numbered, copy/paste development prompts.
 - `src/`: authored static frontend and shared validation modules.
-- `functions/`: Cloudflare Pages Functions and provider adapters.
+- `worker/`: Cloudflare Worker entrypoint; `functions/`: server-side API handlers and provider adapters.
 - `tests/`: secretless unit and handler integration fixtures.
 - `legacy/`: prior SG Transit prototype, for migration, not for direct deployment.
 - `.env.example`: non-secret variable names only.
 
 ## Principle
 
-The site is *static-first*, not 100% static: Pages Functions execute only for authenticated API routes. No separately deployed Worker, database or paid third-party webhook is required by default. Verify current Cloudflare and data-provider quotas before launch.
+The site is *static-first*, not 100% static: the Worker executes only for authenticated API routes and serves static assets through the ASSETS binding. No separate Pages project, database or paid third-party webhook is required by default. Verify current Cloudflare and data-provider quotas before launch.

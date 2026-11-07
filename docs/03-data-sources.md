@@ -7,8 +7,8 @@
 - OneMap API documentation: https://www.onemap.gov.sg/apidocs/
 - OneMap authentication: https://www.onemap.gov.sg/apidocs/authentication
 - OneMap Search: https://www.onemap.gov.sg/apidocs/search
-- Cloudflare Pages Functions: https://developers.cloudflare.com/pages/functions/get-started/
-- Cloudflare Pages routing: https://developers.cloudflare.com/pages/functions/routing/
+- Cloudflare Workers static assets: https://developers.cloudflare.com/workers/static-assets/binding/
+- Cloudflare Workers static assets: https://developers.cloudflare.com/workers/static-assets/binding/
 - Cloudflare secrets: https://developers.cloudflare.com/workers/configuration/secrets/
 
 ## LTA

@@ -3,9 +3,9 @@
 ```text
 User browser / installable PWA
   ↕ HTTPS same-origin
-Cloudflare Pages (static public/ assets)
+Cloudflare Worker (static public/ assets + API router)
   ├─ HTML/CSS/ES modules, search/favourites/geolocation/local catalogue
-  └─ /api/* -> Pages Functions (Cloudflare Workers runtime)
+  └─ /api/* -> Worker handlers (Workers runtime)
       ├─ validation, error mapping, timeouts, caching, quota safeguards
       ├─ LTA DataMall AccountKey [server-side secret]
       └─ OneMap credentials/token [server-side secret]
@@ -13,7 +13,7 @@ Cloudflare Pages (static public/ assets)
 
 - Keep `/functions/` at repo root, separate from static publish output. Prefer colocated same-origin calls `/api/...`, avoiding browser CORS friction.
 - Frontend can use static generated bus/station catalogues if publishing terms permit, with provenance/version/refresh instructions; no live countdowns embedded in static assets.
-- Pages Functions may use Cache API where effective, but study cache behavior and per-region limitations; don't promise globally shared cache by default. GTFS bulk feeds may require preprocessing or a changed plan after profiling.
+- Worker handlers may use Cache API where effective, but study cache behavior and per-region limitations; don't promise globally shared cache by default. GTFS bulk feeds may require preprocessing or a changed plan after profiling.
 - For token lifetimes and cross-isolate cache, use a minimal robust strategy: authenticated OneMap calls server-side, optionally cache expiring tokens in a permitted shared store only if justified. Don't assume module-global state is durable.
 - Avoid Cloudflare KV/D1 until demonstrated necessary; if used, explain costs, consistency and operations.
 - Document major architecture changes as ADR entries in `docs/decisions.md`.
@@ -22,6 +22,7 @@ Cloudflare Pages (static public/ assets)
 
 ```text
 public/index.html
+worker/index.js
 public/manifest.webmanifest
 public/sw.js
 public/assets/*

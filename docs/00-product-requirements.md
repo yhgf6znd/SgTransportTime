@@ -1,14 +1,14 @@
 # Product requirements and scope
 
 ## Goal
-A fast, free/open-source, mobile-first Singapore bus and MRT/LRT arrival web app, installable as a PWA, hosted as static files on Cloudflare Pages with only minimal Pages Functions for secured live API access.
+A fast, free/open-source, mobile-first Singapore bus and MRT/LRT arrival web app, installable as a PWA, hosted as static assets on Cloudflare Workers with one Worker for secured live API access.
 
 ## Must-have (MVP)
 - Bus search by five-digit stop code, stop name and road name; filter by service number, including letter suffixes (e.g. 36A). Support combined service + stop searches.
 - LTA Bus Arrival v3: up to 3 arrivals per bus service, load and accessibility when provided; correct remaining time; manual refresh; sensible polling; freshness information.
 - Local favourites for stop+service, no account.
 - Useful errors when API unavailable; accessible mobile responsive UI.
-- Single Cloudflare Pages deployment and secret-safe authenticated API proxy.
+- Single Cloudflare Workers deployment and secret-safe authenticated API proxy.
 
 ## Phase 2
 - Public MRT/LRT station directory searchable by name and (verified) codes; GTFS schedule/stops matching; GTFS Realtime Trip Updates, where confirmed available; honest no-data statuses; service alerts.

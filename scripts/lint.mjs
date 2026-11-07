@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
-const roots = ['src', 'functions', 'scripts', 'tests'];
+const roots = ['src', 'functions', 'scripts', 'tests', 'worker'];
 const files = [];
 async function walk(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {

@@ -2,9 +2,9 @@
 
 The legacy prototype was reviewed on 2026-11-02. It had a useful vanilla-JS bus/train UI and provider transforms, but it depended on a separately deployed Worker, a browser-configured API URL, permissive CORS, raw upstream errors, unbounded feed work, unversioned favourites, and `innerHTML` rendering of remote values. It is retained as historical reference only.
 
-| Area | Legacy behavior | Pages implementation | State |
+| Area | Legacy behavior | Workers implementation | State |
 |---|---|---|---|
-| Hosting | GitHub Pages plus a separate Worker | One static `public/` artifact plus root `functions/` | Implemented |
+| Hosting | GitHub Pages plus a separate Worker | One static `public/` artifact plus a Worker entrypoint and root `functions/` | Implemented |
 | Bus arrival | LTA v3 proxy and three ETA slots | `/api/bus/arrivals`, validated server-side, normalized timestamps/load/accessibility | Implemented; live key pending |
 | Bus search | Worker catalogue cache | Paginated `/api/bus/stops` with bounded search | Implemented; live key pending |
 | Train directory | Worker downloaded/unzipped schedule per cache | LTA GTFS schedule download, CSV grouping by `parent_station` | Implemented; live key pending |
