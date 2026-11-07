@@ -6,6 +6,8 @@
 - [x] `npm run build` creates the Pages output and `_routes.json` invokes Functions only for `/api/*`.
 - [x] CI runs secretless tests, syntax checks, and build.
 - [ ] Connect the repository to one Cloudflare Pages project with build command `npm run build` and output directory `public`.
+- [ ] If Git integration is enabled, clear the custom deploy command; do not use `npx wrangler deploy`.
+- [ ] If using Direct Upload instead, use `npm run deploy:pages` / `npx wrangler pages deploy public` and provide the Pages project name when prompted.
 - [ ] Confirm preview and production environments use separate secret bindings.
 
 ## Secrets and provider verification

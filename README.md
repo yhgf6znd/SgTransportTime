@@ -12,6 +12,8 @@ npm run build
 npx wrangler pages dev public
 ```
 
+For a Direct Upload Pages project, use `npm run deploy:pages`. For a Git-connected Pages project, configure the dashboard with `npm run build` and `public`, and leave the custom deploy command empty. Do not use `npx wrangler deploy`; that command targets Workers rather than Pages.
+
 For live local requests, create a gitignored `.dev.vars` with `LTA_ACCOUNT_KEY` and/or `ONEMAP_EMAIL` plus `ONEMAP_PASSWORD`. Never put credentials in frontend files or commit that file. Without credentials, deterministic tests still run but live provider features correctly return configuration/unavailable states.
 
 ## Start here (Cursor)
