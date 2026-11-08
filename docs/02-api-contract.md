@@ -18,9 +18,9 @@ Errors: `{ "success": false, "error": { "code": "INVALID_INPUT", "message": "...
 | `/api/train/arrivals` | `station` | LTA GTFS Trip Updates where feed coverage matches |
 | `/api/train/alerts` | — | LTA train service advisories |
 | `/api/places/search` | `q` | server-authenticated OneMap Search |
-| `/api/nearby` | `type=bus\|train`, `lat`, `lon`, `radius` | OneMap nearby bus stops or MRT/LRT stations; exactly one type per request; location is not retained |
+| `/api/nearby` | `lat`, `lon`, `radius`; optional `type=bus\|train` | OneMap nearby bus stops and MRT/LRT stations by default; an explicit type may request one category; location is not retained |
 
-Nearby success data is `{ "type": "bus"|"train", "results": [] }`. Bus records contain `kind`, string `code`, `name`, `road`, coordinates, and `distanceMetres`; train records contain `kind`, canonical `id`, `name`, `road`, coordinates, and `distanceMetres`. The server validates and caps the radius and result count.
+Nearby default success data is `{ "buses": [], "trains": [] }`. With an explicit type, it is `{ "type": "bus"|"train", "results": [] }`. Bus records contain `kind`, string `code`, `name`, `road`, coordinates, and `distanceMetres`; train records contain `kind`, canonical `id`, `name`, `road`, coordinates, and `distanceMetres`. The server validates and caps the radius and result count. `meta.partial` is true if one of the two default category requests fails while the other succeeds.
 
 Limit query lengths, result count and nearby radius. Bus stop codes are **strings** (leading zeros). Validate latitude [-90,90], longitude [-180,180]. Train station ID must be canonical, not assumed same as public code. Conditional cache policy by data class and source terms; `stale`/`unavailable` must not be represented as `live`.
 

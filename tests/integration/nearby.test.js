@@ -6,12 +6,12 @@ function request(type) {
   return new Request(`https://example.test/api/nearby?type=${type}&lat=1.405&lon=103.901&radius=500`);
 }
 
-test('nearby requires an explicit transport type', async () => {
+test('nearby rejects unsupported transport types', async () => {
   const originalFetch = globalThis.fetch;
   let called = false;
   globalThis.fetch = async () => { called = true; throw new Error('should not call'); };
   try {
-    const response = await nearby({ request: new Request('https://example.test/api/nearby?lat=1.405&lon=103.901'), env: { ONEMAP_TOKEN: 'test' } });
+    const response = await nearby({ request: request('tram'), env: { ONEMAP_TOKEN: 'test' } });
     const body = await response.json();
     assert.equal(response.status, 400);
     assert.equal(body.error.code, 'INVALID_INPUT');

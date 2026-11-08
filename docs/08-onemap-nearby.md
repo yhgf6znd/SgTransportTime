@@ -11,6 +11,6 @@ The nearby API uses OneMap’s dedicated transport services rather than searchin
 - Header: `Authorization` with a server-side OneMap access token.
 - Response: an array of `{ id, name, lat, lon, road }` records.
 
-The application exposes these through `GET /api/nearby` with required `type=bus|train`, plus `lat`, `lon`, and a supported radius of 250, 500, 1,000, or 2,000 m. It returns only the requested category. Distances are calculated from the returned WGS84 coordinates for display and the result is capped at 20 records.
+The application calls both services by default through `GET /api/nearby?lat=...&lon=...&radius=...` and returns separate `buses` and `trains` arrays. An optional `type=bus` or `type=train` can request one category for API callers. Distances are calculated from the returned WGS84 coordinates for display and each category is capped at 20 records.
 
-OneMap credentials remain Worker-only. Configure either the encrypted `ONEMAP_TOKEN` secret or `ONEMAP_EMAIL` and `ONEMAP_PASSWORD`; no token is sent to browser code. No authenticated live provider call was performed by the fixture tests, so quota, account access, and live response behavior remain deployment checks.
+If one category fails, the other successful category is still returned with `meta.partial: true`. If both fail, the request returns the upstream/configuration error. OneMap credentials remain Worker-only: configure either the encrypted `ONEMAP_TOKEN` secret or `ONEMAP_EMAIL` and `ONEMAP_PASSWORD`.
