@@ -21,3 +21,6 @@ At each milestone log: commit, files changed, commands run, pass/fail, pending c
 - [x] M13: unified ranked search GUI for bus stops, bus services, MRT/LRT stations, postal codes, and place-name nearby lookup
 
 Frontend checkpoint (2026-11-08): one accessible search bar now drives transport and nearby-place lookup with debounced hints, keyboard navigation, and exact/prefix/wildcard result grouping.
+- [x] M14: inline star saving with saved-first search suggestions and empty-query saved entries
+
+Frontend checkpoint (2026-11-09): the dedicated Saved tab was removed; saved bus stops, services, stations, and nearby places are shown and managed directly in global search.

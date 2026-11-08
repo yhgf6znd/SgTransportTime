@@ -1,4 +1,4 @@
-import { normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank } from './lib/transit.js';
+import { normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank, sortSearchRecords } from './lib/transit.js';
 import { loadState, saveState, toggleFavourite } from './lib/storage.js';
 
 const $ = (selector) => document.querySelector(selector);
@@ -25,14 +25,21 @@ async function api(path) {
 
 function chip(status) { return node('span', status, `status-chip status-${status}`); }
 
-function saveButton(favourite) {
-  const saved = state.saved.favourites.some((item) => item.kind === favourite.kind && item.code === favourite.code && item.service === favourite.service);
-  const button = node('button', saved ? '★ Saved' : '☆ Save', 'save-button');
+function isFavourite(favourite) {
+  return state.saved.favourites.some((item) => item.kind === favourite.kind && item.code === favourite.code && item.service === (favourite.service ?? ''));
+}
+
+function saveButton(favourite, onChange = () => {}) {
+  const saved = isFavourite(favourite);
+  const button = node('button', saved ? '★' : '☆', 'save-button');
   button.type = 'button';
-  button.addEventListener('click', () => {
+  button.setAttribute('aria-label', saved ? 'Remove from saved entries' : 'Save entry');
+  button.title = saved ? 'Remove from saved entries' : 'Save entry';
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
     toggleFavourite(state.saved, favourite);
     saveState(window.localStorage, state.saved);
-    renderSaved();
+    onChange();
     renderCurrent();
   });
   return button;
@@ -168,20 +175,6 @@ function renderTrain(data) {
   }
 }
 
-function renderSaved() {
-  const view = $('#view-saved');
-  view.querySelector('.panel').replaceChildren(node('h2', 'Saved journeys'), node('p', 'Saved locally on this device. No account or credentials are needed.', 'panel-copy'));
-  for (const favourite of state.saved.favourites) {
-    const row = node('article', undefined, 'card saved-row');
-    row.append(node('strong', favourite.kind === 'bus' ? `Bus ${favourite.service} · Stop ${favourite.code}` : `Train · ${favourite.name}`));
-    const open = node('button', 'Open', 'secondary-button');
-    open.type = 'button';
-    open.addEventListener('click', () => openFavourite(favourite));
-    row.append(open);
-    view.append(row);
-  }
-  if (!state.saved.favourites.length) view.append(node('div', 'No saved journeys yet.', 'empty'));
-}
 
 function renderCurrent() {
   if (state.current?.kind === 'bus' && state.current.data) renderBus(state.current.data, state.current.meta);
@@ -213,43 +206,6 @@ async function loadPlaces(query) {
 }
 
 
-function searchRecord(kind, item, query, label, detail, fields) {
-  const rank = searchMatchRank(fields, query);
-  return rank < 0 ? null : { kind, item, rank, label, detail };
-}
-
-function renderSuggestions(container, records, onSelect) {
-  suggestionButtons = [];
-  activeSuggestion = -1;
-  const groups = [[0, "Exact match"], [1, "Starting with"], [2, "Other matches"]];
-  const elements = [];
-  for (const [rank, title] of groups) {
-    const matches = records.filter((record) => record.rank === rank);
-    if (!matches.length) continue;
-    elements.push(node("div", title, "suggestion-group-label"));
-    for (const record of matches) {
-      const button = node("button", undefined, "suggestion");
-      button.type = "button";
-      button.setAttribute("role", "option");
-      button.setAttribute("aria-selected", "false");
-      button.append(node("strong", record.label), node("span", record.detail, "suggestion-detail"));
-      button.addEventListener("click", () => { onSelect(record); container.replaceChildren(); suggestionButtons = []; });
-      suggestionButtons.push(button);
-      elements.push(button);
-    }
-  }
-  container.replaceChildren(...elements);
-}
-
-function setActiveSuggestion(index) {
-  if (!suggestionButtons.length) return;
-  activeSuggestion = (index + suggestionButtons.length) % suggestionButtons.length;
-  suggestionButtons.forEach((button, buttonIndex) => {
-    const selected = buttonIndex === activeSuggestion;
-    button.setAttribute("aria-selected", String(selected));
-    if (selected) button.scrollIntoView({ block: "nearest" });
-  });
-}
 
 async function collectSearchRecords(query) {
   const serviceQuery = normalizeStopCode(query) || /^[A-Z]{1,5}\d{1,3}$/i.test(query) ? null : normalizeService(query);
@@ -364,13 +320,14 @@ async function showBusRoute(service) {
 
 function chooseSearchRecord(record) {
   const input = $("#global-query");
-  input.value = record.kind === "bus-stop" ? record.item.code : record.kind === "bus-service" ? record.item.serviceNo : record.kind === "train-station" ? record.item.name : record.item.label;
+  input.value = record.kind === "bus-stop" || record.kind === "bus" ? record.item.code : record.kind === "bus-service" ? record.item.serviceNo : record.kind === "train-station" ? record.item.name : record.item.label;
   $("#search-suggestions").replaceChildren();
   suggestionButtons = [];
-  if (record.kind === "bus-stop") return refreshBus(record.item.code, "");
+  if (record.kind === "bus" || record.kind === "bus-stop") return refreshBus(record.item.code, record.item.service || "");
   if (record.kind === "bus-service") return showBusService(record.item);
   if (record.kind === "train-station") return refreshTrain(record.item);
-  return nearby(record.item.latitude, record.item.longitude);
+  if (Number.isFinite(Number(record.item.latitude)) && Number.isFinite(Number(record.item.longitude))) return nearby(record.item.latitude, record.item.longitude);
+  return loadPlaces(record.item.label).then((places) => places[0] ? nearby(places[0].latitude, places[0].longitude) : setStatus("That saved place could not be located."));
 }
 
 function parseDirectQuery(query) {
@@ -383,7 +340,7 @@ function parseDirectQuery(query) {
 async function searchAll(event) {
   event?.preventDefault();
   const query = $("#global-query").value.trim();
-  if (!query) { $("#search-suggestions").replaceChildren(); setStatus("Enter a station, bus stop, service, postal code, or place name."); return; }
+  if (!query) { state.searchQuery = ""; state.searchRecords = []; refreshSearchSuggestions(); setStatus(state.saved.favourites.length ? "Saved entries are shown below." : "Type to search bus stops, services, stations, or places."); return; }
   const direct = parseDirectQuery(query);
   if (direct) { $("#search-suggestions").replaceChildren(); await refreshBus(direct.stop, direct.service); return; }
   try {
@@ -402,7 +359,7 @@ function scheduleSearch() {
   updateSearchHint(query);
   state.searchQuery = query;
   state.searchRecords = [];
-  if (!query) { $("#search-suggestions").replaceChildren(); return; }
+  if (!query) { refreshSearchSuggestions(); setStatus(state.saved.favourites.length ? "Saved entries are shown below." : "Type to search bus stops, services, stations, or places."); return; }
   const revision = ++searchRevision;
   state.searchTimer = setTimeout(async () => {
     try {
@@ -470,12 +427,6 @@ async function nearby(latitude, longitude) {
   } catch (error) { setStatus(apiError(error)); }
 }
 
-function openFavourite(favourite) {
-  switchView('search');
-  $('#global-query').value = favourite.kind === 'bus' ? favourite.code : favourite.name || favourite.code;
-  if (favourite.kind === 'bus') refreshBus(favourite.code, favourite.service);
-  else refreshTrain({ id: favourite.code, name: favourite.name, stopIds: [] });
-}
 
 function scheduleRefresh() {
   clearTimeout(state.timer);
@@ -487,26 +438,14 @@ function scheduleRefresh() {
   }, state.saved.pollingSeconds * 1000);
 }
 
-function switchView(view) {
-  state.view = view;
-  document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('is-active', button.dataset.view === view));
-  document.querySelectorAll('.view').forEach((section) => { section.hidden = section.id !== `view-${view}`; });
-  clearTimeout(state.timer);
-  $('#refresh-button').hidden = true;
-  clearResults();
-  if (view === 'saved') renderSaved();
-  else loadAlerts();
-  setStatus(view === 'saved' ? 'Saved journeys' : 'Choose a search to get started.');
-}
 
-document.querySelectorAll('.tab').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.view)));
 $('#search-form').addEventListener('submit', searchAll);
 $('#global-query').addEventListener('input', scheduleSearch);
 $('#global-query').addEventListener('keydown', (event) => {
   if (event.key === 'ArrowDown') { event.preventDefault(); setActiveSuggestion(activeSuggestion + 1); }
   if (event.key === 'ArrowUp') { event.preventDefault(); setActiveSuggestion(activeSuggestion - 1); }
   if (event.key === 'Escape') { $('#search-suggestions').replaceChildren(); suggestionButtons = []; activeSuggestion = -1; }
-  if (event.key === 'Enter' && activeSuggestion >= 0 && suggestionButtons[activeSuggestion]) { event.preventDefault(); suggestionButtons[activeSuggestion].click(); }
+  if (event.key === "Enter" && activeSuggestion >= 0 && suggestionButtons[activeSuggestion]) { event.preventDefault(); suggestionButtons[activeSuggestion].querySelector(".suggestion-result").click(); }
 });
 $('#refresh-button').addEventListener('click', () => state.current?.kind === 'bus' ? refreshBus(state.current.stop, state.current.service) : refreshTrain(state.current.station));
 $('#location-button').addEventListener('click', () => {
@@ -527,5 +466,65 @@ $('#settings-form').addEventListener('submit', (event) => {
 function applyTheme() { document.documentElement.dataset.theme = state.saved.theme === 'system' ? '' : state.saved.theme; }
 document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(state.timer); else if (state.current) scheduleRefresh(); });
 applyTheme();
+refreshSearchSuggestions();
 loadAlerts();
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+function favouriteForRecord(kind, item) {
+  if (kind === 'bus-stop') return { kind: 'bus-stop', code: item.code, service: '', name: item.name || `Stop ${item.code}` };
+  if (kind === 'bus-service') return { kind: 'bus-service', code: item.serviceNo, service: '', name: `Service ${item.serviceNo}` };
+  if (kind === 'train-station') return { kind: 'train', code: item.id, service: '', name: item.name };
+  return { kind: 'place', code: item.label, service: '', name: item.label };
+}
+
+function savedRecord(favourite) {
+  if (favourite.kind === 'bus' || favourite.kind === 'bus-stop') return { kind: favourite.kind, item: { code: favourite.code, name: favourite.name, service: favourite.service }, rank: 2, label: favourite.kind === 'bus' ? `Bus service ${favourite.service} · Stop ${favourite.code}` : `Bus stop ${favourite.code} · ${favourite.name}`, detail: 'Saved bus entry', favourite };
+  if (favourite.kind === 'bus-service') return { kind: 'bus-service', item: { serviceNo: favourite.code }, rank: 2, label: 'Bus service ' + favourite.code, detail: 'Saved bus service', favourite };
+  if (favourite.kind === 'train') return { kind: 'train-station', item: { id: favourite.code, name: favourite.name, stopIds: [] }, rank: 2, label: favourite.name, detail: `Saved MRT / LRT station · ${favourite.code}`, favourite };
+  return { kind: 'place', item: { label: favourite.name }, rank: 2, label: favourite.name, detail: 'Saved nearby location', favourite };
+}
+
+function searchRecord(kind, item, query, label, detail, fields) {
+  const rank = searchMatchRank(fields, query);
+  return rank < 0 ? null : { kind, item, rank, label, detail, favourite: favouriteForRecord(kind, item) };
+}
+
+function renderSuggestions(container, records, onSelect) {
+  suggestionButtons = [];
+  activeSuggestion = -1;
+  const ordered = sortSearchRecords(records.map((record) => ({ ...record, saved: isFavourite(record.favourite) })));
+  const groups = [[(record) => record.saved, 'Saved'], [(record) => !record.saved && record.rank === 0, 'Exact match'], [(record) => !record.saved && record.rank === 1, 'Starting with'], [(record) => !record.saved && record.rank === 2, 'Other matches']];
+  const elements = [];
+  for (const [matches, title] of groups) {
+    const group = ordered.filter(matches);
+    if (!group.length) continue;
+    elements.push(node('div', title, 'suggestion-group-label'));
+    for (const record of group) {
+      const row = node('div', undefined, 'suggestion');
+      row.setAttribute('role', 'option');
+      row.setAttribute('aria-selected', 'false');
+      const select = node('button', undefined, 'suggestion-result');
+      select.type = 'button';
+      select.append(node('strong', record.label), node('span', record.detail, 'suggestion-detail'));
+      select.addEventListener('click', () => { onSelect(record); container.replaceChildren(); suggestionButtons = []; activeSuggestion = -1; });
+      row.append(select, saveButton(record.favourite, refreshSearchSuggestions));
+      suggestionButtons.push(row);
+      elements.push(row);
+    }
+  }
+  container.replaceChildren(...elements);
+}
+
+function refreshSearchSuggestions() {
+  const query = $('#global-query').value.trim();
+  renderSuggestions($('#search-suggestions'), query ? state.searchRecords : state.saved.favourites.map(savedRecord), chooseSearchRecord);
+}
+
+function setActiveSuggestion(index) {
+  if (!suggestionButtons.length) return;
+  activeSuggestion = (index + suggestionButtons.length) % suggestionButtons.length;
+  suggestionButtons.forEach((row, rowIndex) => {
+    const selected = rowIndex === activeSuggestion;
+    row.setAttribute('aria-selected', String(selected));
+    if (selected) row.scrollIntoView({ block: 'nearest' });
+  });
+}

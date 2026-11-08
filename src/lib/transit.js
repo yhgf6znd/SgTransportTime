@@ -70,3 +70,6 @@ export function stationMatches(station, query) {
   if (!needle) return true;
   return [station.id, ...(station.stopIds ?? [])].some((value) => String(value).toLowerCase().includes(needle));
 }
+export function sortSearchRecords(records) {
+  return records.slice().sort((a, b) => Number(Boolean(b.saved)) - Number(Boolean(a.saved)) || (a.rank ?? 2) - (b.rank ?? 2) || String(a.label ?? '').localeCompare(String(b.label ?? '')));
+}

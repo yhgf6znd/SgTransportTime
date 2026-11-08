@@ -28,3 +28,13 @@ test('round trips versioned favourites and toggles without credentials', () => {
   toggleFavourite(restored, restored.favourites[0]);
   assert.equal(restored.favourites.length, 0);
 });
+test("supports saved search entry types", () => {
+  const state = sanitizeState({ version: 1, favourites: [
+    { kind: "bus-stop", code: "01012", name: "Raffles Hotel" },
+    { kind: "bus-service", code: "36A", name: "Service 36A" },
+    { kind: "place", code: "Raffles Place", name: "Raffles Place", latitude: 1.283, longitude: 103.851 },
+  ] });
+  assert.equal(state.favourites.length, 3);
+  toggleFavourite(state, state.favourites[1]);
+  assert.equal(state.favourites.length, 2);
+});
