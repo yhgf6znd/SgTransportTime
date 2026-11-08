@@ -44,6 +44,17 @@ export async function ltaBinary(path, env, timeoutMs = 10000) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
+function xmlText(value) {
+  return value.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+}
+
+function xmlFeedLink(text) {
+  const attribute = text.match(/<link\b[^>]*\bhref=["']([^"']+)["'][^>]*>/i);
+  if (attribute) return xmlText(attribute[1]);
+  const element = text.match(/<link\b[^>]*>([\s\S]*?)<\/link>/i);
+  return element ? xmlText(element[1].trim()) : null;
+}
+
 export async function ltaFeedBytes(dataset, env, timeoutMs = 12000, cacheTtlSeconds = 0) {
   const key = requireKey(env);
   if (cacheTtlSeconds > 0) {
@@ -64,11 +75,15 @@ export async function ltaFeedBytes(dataset, env, timeoutMs = 12000, cacheTtlSeco
   const body = new Uint8Array(await feedResponse.arrayBuffer());
   let feedBytes = body;
   if (!(contentType.includes('application/zip') || contentType.includes('application/octet-stream') || (body[0] === 0x50 && body[1] === 0x4b))) {
-    let metadata;
-    try { metadata = JSON.parse(new TextDecoder().decode(body)); }
-    catch { throw new ProviderError('UPSTREAM_INVALID', 'LTA returned neither a train feed nor a feed download link.', 502); }
-    const item = Array.isArray(metadata?.value) ? metadata.value[0] : metadata?.value ?? metadata;
-    const link = item?.Link ?? item?.link ?? metadata?.Link ?? metadata?.link;
+    const text = new TextDecoder().decode(body);
+    let link;
+    try {
+      const metadata = JSON.parse(text);
+      const item = Array.isArray(metadata?.value) ? metadata.value[0] : metadata?.value ?? metadata;
+      link = item?.Link ?? item?.link ?? metadata?.Link ?? metadata?.link;
+    } catch {
+      link = xmlFeedLink(text);
+    }
     if (typeof link !== 'string' || !/^https:\/\//i.test(link)) throw new ProviderError('UPSTREAM_INVALID', 'LTA did not provide a safe feed link.', 502);
     const downloadUrl = new URL(link);
     const allowedHosts = new Set([

@@ -37,3 +37,22 @@ test('allows the current official LTA GTFS temporary download host', async () =>
     assert.deepEqual(await ltaFeedBytes('GTFSScheduleTrain', { LTA_ACCOUNT_KEY: 'test' }), feed);
   } finally { globalThis.fetch = originalFetch; }
 });
+
+test('accepts an XML/Atom LTA train feed link', async () => {
+  const originalFetch = globalThis.fetch;
+  const feed = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+  let requestCount = 0;
+  globalThis.fetch = async (url) => {
+    requestCount += 1;
+    if (requestCount === 1) return new Response('<?xml version="1.0"?><feed><entry><link>https://dmprod-datasets.s3.ap-southeast-1.amazonaws.com/train-gtfs-schedule/gtfs_schedule.zip?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Signature=test</link></entry></feed>', { status: 200, headers: { 'Content-Type': 'application/atom+xml' } });
+    assert.equal(new URL(url).hostname, 'dmprod-datasets.s3.ap-southeast-1.amazonaws.com');
+    assert.equal(new URL(url).searchParams.get('X-Amz-Algorithm'), 'AWS4-HMAC-SHA256');
+    return new Response(feed, { status: 200, headers: { 'Content-Type': 'application/octet-stream' } });
+  };
+  try {
+    assert.deepEqual(await ltaFeedBytes('GTFSScheduleTrain', { LTA_ACCOUNT_KEY: 'test' }), feed);
+    assert.equal(requestCount, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
