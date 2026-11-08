@@ -1,4 +1,4 @@
-import { normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank, sortSearchRecords } from './lib/transit.js';
+import { formatEtaLabel, normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank, sortSearchRecords } from './lib/transit.js';
 import { loadState, saveState, toggleFavourite } from './lib/storage.js';
 
 const $ = (selector) => document.querySelector(selector);
@@ -46,8 +46,7 @@ function saveButton(favourite, onChange = () => {}) {
 }
 
 function minutesLabel(item) {
-  const minutes = parseEtaMinutes(item.estimatedArrival);
-  return minutes === null ? 'No ETA' : minutes <= 1 ? 'Arriving' : `${minutes} min`;
+  return formatEtaLabel(item.estimatedArrival);
 }
 
 function loadLabel(code) { return ({ SEA: 'Seats available', SDA: 'Standing available', LSD: 'Limited standing' })[code] ?? null; }

@@ -35,6 +35,16 @@ export function normalizeBusArrival(raw = {}) {
   };
 }
 
+export function formatEtaLabel(estimatedArrival, now = Date.now()) {
+  const minutes = parseEtaMinutes(estimatedArrival, now);
+  if (minutes === null) return 'No ETA';
+  if (minutes <= 1) return 'Arriving';
+  if (minutes > 60) return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(new Date(estimatedArrival));
+  return String(minutes) + ' min';
+}
+
 export function haversineKm(latitudeA, longitudeA, latitudeB, longitudeB) {
   const toRadians = (degrees) => degrees * Math.PI / 180;
   const latDelta = toRadians(latitudeB - latitudeA);

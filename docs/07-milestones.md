@@ -34,3 +34,7 @@ Frontend checkpoint (2026-11-09): search suggestion favourite controls stay on t
 - [x] M17: retain statically served bus services when a bus-stop live ETA response has no data
 
 Frontend checkpoint (2026-11-09): bus-stop responses merge cached route coverage with live arrivals and label empty services unavailable.
+
+- [x] M18: show arrival timestamps in Singapore 24-hour format beyond 60 minutes
+
+Frontend checkpoint (2026-11-09): arrivals remain minute-based through 60 minutes and switch to `HH:mm` after that.

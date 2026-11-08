@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { haversineKm, normalizeBusArrival, normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank, searchRecords, sortSearchRecords, validCoordinates } from '../../src/lib/transit.js';
+import { formatEtaLabel, haversineKm, normalizeBusArrival, normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank, searchRecords, sortSearchRecords, validCoordinates } from '../../src/lib/transit.js';
 
 test('keeps leading zero bus stop codes and allows service suffixes', () => {
   assert.equal(normalizeStopCode(' 01012 '), '01012');
@@ -50,4 +50,13 @@ test("keeps saved wildcard results ahead of unsaved exact results", () => {
     { label: "Saved wildcard", rank: 2, saved: true },
   ]);
   assert.equal(results[0].label, "Saved wildcard");
+});
+
+
+test("uses Singapore 24-hour time for ETAs beyond one hour", () => {
+  const now = Date.parse("2026-11-02T00:00:00+08:00");
+  assert.equal(formatEtaLabel("2026-11-02T00:59:00+08:00", now), "59 min");
+  assert.equal(formatEtaLabel("2026-11-02T01:00:00+08:00", now), "60 min");
+  assert.equal(formatEtaLabel("2026-11-02T01:00:01+08:00", now), "01:00");
+  assert.equal(formatEtaLabel("2026-11-02T02:05:00+08:00", now), "02:05");
 });
