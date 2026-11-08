@@ -11,8 +11,7 @@ let scheduleCache = null;
 let scheduleCacheAt = 0;
 let scheduleCacheStale = false;
 
-function findZipText(bytes, suffix) {
-  const files = unzipSync(bytes);
+function findZipText(files, suffix) {
   const name = Object.keys(files).find((entry) => entry.toLowerCase().endsWith(suffix));
   if (!name) throw new ProviderError('UPSTREAM_INVALID', `The train schedule is missing ${suffix}.`, 502);
   return strFromU8(files[name]);
@@ -146,13 +145,16 @@ async function loadTrainSchedule(env) {
     const previousSchedule = scheduleCache;
     try {
       const bytes = await ltaFeedBytes('GTFSScheduleTrain', env, 12000, STATIC_CACHE_SECONDS);
+      // Decompress the bulk GTFS archive once. Repeating unzipSync for every
+      // file can exceed a Worker CPU or memory limit on the production feed.
+      const files = unzipSync(bytes);
       const nextSchedule = buildTrainSchedule({
-        stops: csvRows(findZipText(bytes, 'stops.txt')),
-        trips: csvRows(findZipText(bytes, 'trips.txt')),
-        stopTimes: csvRows(findZipText(bytes, 'stop_times.txt')),
-        calendar: csvRows(findZipText(bytes, 'calendar.txt')),
-        calendarDates: csvRows(findZipText(bytes, 'calendar_dates.txt')),
-        routes: csvRows(findZipText(bytes, 'routes.txt')),
+        stops: csvRows(findZipText(files, 'stops.txt')),
+        trips: csvRows(findZipText(files, 'trips.txt')),
+        stopTimes: csvRows(findZipText(files, 'stop_times.txt')),
+        calendar: csvRows(findZipText(files, 'calendar.txt')),
+        calendarDates: csvRows(findZipText(files, 'calendar_dates.txt')),
+        routes: csvRows(findZipText(files, 'routes.txt')),
       });
       if (!nextSchedule.stations.length || !nextSchedule.entriesByStopId.size) {
         throw new ProviderError('UPSTREAM_INVALID', 'The LTA train schedule contained no usable station or timetable records.', 502);
