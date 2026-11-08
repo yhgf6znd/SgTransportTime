@@ -155,7 +155,8 @@ function renderTrain(data) {
     const card = node('article', undefined, 'card');
     const head = node('div', undefined, 'card-head');
     const title = node('div');
-    title.append(node('h2', `${entry.station.name} · ${entry.station.id}`, 'card-title'), node('p', 'Verified station code', 'card-sub'));
+    const codes = entry.station.codes?.join(' / ') || entry.station.id;
+    title.append(node('h2', `${entry.station.name} · ${codes}`, 'card-title'), node('p', 'Verified station code(s)', 'card-sub'));
     head.append(title, saveButton({ kind: 'train', code: entry.station.id, service: '', name: entry.station.name }));
     card.append(head, chip(entry.status));
     if (!entry.arrivals.length) {
