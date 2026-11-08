@@ -315,7 +315,7 @@ async function refreshTrain(station) {
     const body = await api(`/api/train/arrivals?station=${encodeURIComponent(station.id)}`);
     state.current = { kind: 'train', station, data: body.data, meta: body.meta };
     renderTrain(body.data, body.meta);
-    setStatus(body.meta.status === 'live' ? 'Updated from the verified LTA realtime feed.' : body.meta.status === 'scheduled' ? 'No disruption update was available; showing planned schedule times.' : 'No train arrivals are available for this station/feed.');
+    setStatus(body.meta.status === 'live' ? 'Updated from the verified LTA realtime feed.' : body.meta.status === 'scheduled' ? 'No disruption update was available; showing planned schedule times.' : body.meta.status === 'stale' ? 'Live data was unavailable; showing the last known planned schedule.' : 'No train arrivals are available for this station/feed.');
     scheduleRefresh();
   } catch (error) { clearResults(); setStatus(apiError(error)); }
 }

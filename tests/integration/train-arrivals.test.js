@@ -37,3 +37,30 @@ test('uses scheduled train arrivals when realtime trip updates fail', async () =
     clearTrainCache();
   }
 });
+
+test('keeps the last planned timetable when a schedule refresh fails', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  const firstNow = Date.parse('2026-11-07T20:00:00Z');
+  let now = firstNow;
+  let requestCount = 0;
+  Date.now = () => now;
+  globalThis.fetch = async (url) => {
+    requestCount += 1;
+    if (requestCount === 1) return new Response(scheduleZip, { status: 200, headers: { 'Content-Type': 'application/zip' } });
+    return new Response('', { status: 503 });
+  };
+  clearTrainCache();
+  try {
+    const first = await trainArrivals({ LTA_ACCOUNT_KEY: 'test' }, 'NS25');
+    assert.equal(first.status, 'scheduled');
+    now = firstNow + (4 * 60 * 60 * 1000) + 1;
+    const refreshed = await trainArrivals({ LTA_ACCOUNT_KEY: 'test' }, 'NS25');
+    assert.equal(refreshed.status, 'stale');
+    assert.equal(refreshed.arrivals[0].predictionStatus, 'scheduled');
+  } finally {
+    Date.now = originalNow;
+    globalThis.fetch = originalFetch;
+    clearTrainCache();
+  }
+});

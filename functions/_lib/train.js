@@ -9,6 +9,7 @@ const SERVICE_DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'f
 const SCHEDULE_CACHE_MS = STATIC_CACHE_SECONDS * 1000;
 let scheduleCache = null;
 let scheduleCacheAt = 0;
+let scheduleCacheStale = false;
 
 function findZipText(bytes, suffix) {
   const files = unzipSync(bytes);
@@ -142,16 +143,30 @@ export function scheduledTrainArrivals(schedule, station, nowMs = Date.now(), ho
 async function loadTrainSchedule(env) {
   const now = Date.now();
   if (!scheduleCache || now - scheduleCacheAt > SCHEDULE_CACHE_MS) {
-    const bytes = await ltaFeedBytes('GTFSScheduleTrain', env, 12000, STATIC_CACHE_SECONDS);
-    scheduleCache = buildTrainSchedule({
-      stops: csvRows(findZipText(bytes, 'stops.txt')),
-      trips: csvRows(findZipText(bytes, 'trips.txt')),
-      stopTimes: csvRows(findZipText(bytes, 'stop_times.txt')),
-      calendar: csvRows(findZipText(bytes, 'calendar.txt')),
-      calendarDates: csvRows(findZipText(bytes, 'calendar_dates.txt')),
-      routes: csvRows(findZipText(bytes, 'routes.txt')),
-    });
-    scheduleCacheAt = now;
+    const previousSchedule = scheduleCache;
+    try {
+      const bytes = await ltaFeedBytes('GTFSScheduleTrain', env, 12000, STATIC_CACHE_SECONDS);
+      const nextSchedule = buildTrainSchedule({
+        stops: csvRows(findZipText(bytes, 'stops.txt')),
+        trips: csvRows(findZipText(bytes, 'trips.txt')),
+        stopTimes: csvRows(findZipText(bytes, 'stop_times.txt')),
+        calendar: csvRows(findZipText(bytes, 'calendar.txt')),
+        calendarDates: csvRows(findZipText(bytes, 'calendar_dates.txt')),
+        routes: csvRows(findZipText(bytes, 'routes.txt')),
+      });
+      if (!nextSchedule.stations.length || !nextSchedule.entriesByStopId.size) {
+        throw new ProviderError('UPSTREAM_INVALID', 'The LTA train schedule contained no usable station or timetable records.', 502);
+      }
+      scheduleCache = nextSchedule;
+      scheduleCacheAt = now;
+      scheduleCacheStale = false;
+    } catch (error) {
+      // A refresh must not discard a previously valid planned timetable. It is
+      // still more useful and more honest to return scheduled data than to
+      // turn a temporary refresh failure into an unavailable station.
+      if (!previousSchedule) throw error;
+      scheduleCacheStale = true;
+    }
   }
   return scheduleCache;
 }
@@ -202,7 +217,7 @@ export async function trainArrivals(env, stationId) {
     // The published schedule remains the honest fallback when realtime data is unavailable.
   }
 
-  return { station, arrivals: scheduled, status: scheduled.length ? 'scheduled' : 'unavailable' };
+  return { station, arrivals: scheduled, status: scheduled.length ? (scheduleCacheStale ? 'stale' : 'scheduled') : 'unavailable' };
 }
 
 export async function trainAlerts(env) {
@@ -216,4 +231,6 @@ export async function trainAlerts(env) {
   }));
 }
 
-export function clearTrainCache() { scheduleCache = null; scheduleCacheAt = 0; }
+export function trainScheduleStatus() { return scheduleCacheStale ? 'stale' : 'scheduled'; }
+
+export function clearTrainCache() { scheduleCache = null; scheduleCacheAt = 0; scheduleCacheStale = false; }
