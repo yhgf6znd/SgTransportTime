@@ -3,15 +3,37 @@ import { decodeGtfsRealtime, csvRows } from './gtfs.js';
 import { ltaFeedBytes, ltaJson } from './lta.js';
 import { ProviderError } from './http.js';
 
-let stationCache = null;
-let stationCacheAt = 0;
-let stopCache = null;
+const SINGAPORE_OFFSET_MS = 8 * 60 * 60 * 1000;
+const SERVICE_DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const SCHEDULE_CACHE_MS = 6 * 60 * 60 * 1000;
+let scheduleCache = null;
+let scheduleCacheAt = 0;
 
 function findZipText(bytes, suffix) {
   const files = unzipSync(bytes);
   const name = Object.keys(files).find((entry) => entry.toLowerCase().endsWith(suffix));
   if (!name) throw new ProviderError('UPSTREAM_INVALID', `The train schedule is missing ${suffix}.`, 502);
   return strFromU8(files[name]);
+}
+
+function parseGtfsClock(value) {
+  const match = String(value ?? '').trim().match(/^(\d{1,2}):([0-5]\d):([0-5]\d)$/);
+  if (!match) return null;
+  return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+}
+
+function dateKey(epochMs) {
+  return new Date(epochMs + SINGAPORE_OFFSET_MS).toISOString().slice(0, 10).replaceAll('-', '');
+}
+
+function shiftDateKey(key, days) {
+  const date = new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(4, 6)) - 1, Number(key.slice(6, 8))));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10).replaceAll('-', '');
+}
+
+function localMidnightEpoch(date) {
+  return Date.UTC(Number(date.slice(0, 4)), Number(date.slice(4, 6)) - 1, Number(date.slice(6, 8))) - SINGAPORE_OFFSET_MS;
 }
 
 function stationRows(rows) {
@@ -35,29 +57,111 @@ function stationRows(rows) {
   return [...grouped.values()].filter((station) => station.id && station.name).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export async function trainStations(env, query = '') {
-  const now = Date.now();
-  if (!stationCache || now - stationCacheAt > 6 * 60 * 60 * 1000) {
-    const bytes = await ltaFeedBytes('GTFSScheduleTrain', env);
-    stationCache = stationRows(csvRows(findZipText(bytes, 'stops.txt')));
-    stationCacheAt = now;
+export function buildTrainSchedule({ stops = [], trips = [], stopTimes = [], calendar = [], calendarDates = [], routes = [] }) {
+  const routeNames = new Map(routes.map((row) => [String(row.route_id ?? '').trim(), String(row.route_short_name ?? row.route_long_name ?? row.route_id ?? '').trim()]));
+  const tripRecords = new Map();
+  for (const row of trips) {
+    const tripId = String(row.trip_id ?? '').trim();
+    const serviceId = String(row.service_id ?? '').trim();
+    if (!tripId || !serviceId) continue;
+    const routeId = String(row.route_id ?? '').trim();
+    tripRecords.set(tripId, { tripId, serviceId, route: routeNames.get(routeId) || routeId || null });
   }
+
+  const entriesByStopId = new Map();
+  for (const row of stopTimes) {
+    const trip = tripRecords.get(String(row.trip_id ?? '').trim());
+    const stopId = String(row.stop_id ?? '').trim();
+    const seconds = parseGtfsClock(row.arrival_time || row.departure_time);
+    if (!trip || !stopId || seconds === null) continue;
+    const entries = entriesByStopId.get(stopId) ?? [];
+    entries.push({ ...trip, stopId, seconds, stopSequence: Number(row.stop_sequence) || 0 });
+    entriesByStopId.set(stopId, entries);
+  }
+
+  return {
+    stations: stationRows(stops),
+    entriesByStopId,
+    calendar,
+    calendarDates,
+  };
+}
+
+function activeServiceIds(schedule, serviceDate) {
+  const active = new Set();
+  const weekday = SERVICE_DAYS[new Date(Date.UTC(Number(serviceDate.slice(0, 4)), Number(serviceDate.slice(4, 6)) - 1, Number(serviceDate.slice(6, 8)))).getUTCDay()];
+  for (const row of schedule.calendar) {
+    const serviceId = String(row.service_id ?? '').trim();
+    if (serviceId && serviceDate >= String(row.start_date ?? '') && serviceDate <= String(row.end_date ?? '') && row[weekday] === '1') active.add(serviceId);
+  }
+  for (const row of schedule.calendarDates) {
+    if (String(row.date ?? '').trim() !== serviceDate) continue;
+    const serviceId = String(row.service_id ?? '').trim();
+    if (!serviceId) continue;
+    if (String(row.exception_type) === '1') active.add(serviceId);
+    if (String(row.exception_type) === '2') active.delete(serviceId);
+  }
+  return active;
+}
+
+export function scheduledTrainArrivals(schedule, station, nowMs = Date.now()) {
+  const stopIds = new Set([station.id, ...station.stopIds]);
+  const results = [];
+  const today = dateKey(nowMs);
+  for (const serviceDate of [shiftDateKey(today, -1), today]) {
+    const active = activeServiceIds(schedule, serviceDate);
+    const midnight = localMidnightEpoch(serviceDate);
+    for (const stopId of stopIds) {
+      for (const entry of schedule.entriesByStopId.get(stopId) ?? []) {
+        if (!active.has(entry.serviceId)) continue;
+        const arrivalMs = midnight + entry.seconds * 1000;
+        if (arrivalMs < nowMs - 30_000 || arrivalMs > nowMs + 2 * 60 * 60 * 1000) continue;
+        results.push({
+          estimatedArrival: new Date(arrivalMs).toISOString(),
+          route: entry.route,
+          trip: entry.tripId || null,
+          delaySeconds: null,
+          predictionStatus: 'scheduled',
+        });
+      }
+    }
+  }
+  const seen = new Set();
+  return results.sort((a, b) => Date.parse(a.estimatedArrival) - Date.parse(b.estimatedArrival)).filter((item) => {
+    const key = `${item.trip}|${item.estimatedArrival}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 20);
+}
+
+async function loadTrainSchedule(env) {
+  const now = Date.now();
+  if (!scheduleCache || now - scheduleCacheAt > SCHEDULE_CACHE_MS) {
+    const bytes = await ltaFeedBytes('GTFSScheduleTrain', env);
+    scheduleCache = buildTrainSchedule({
+      stops: csvRows(findZipText(bytes, 'stops.txt')),
+      trips: csvRows(findZipText(bytes, 'trips.txt')),
+      stopTimes: csvRows(findZipText(bytes, 'stop_times.txt')),
+      calendar: csvRows(findZipText(bytes, 'calendar.txt')),
+      calendarDates: csvRows(findZipText(bytes, 'calendar_dates.txt')),
+      routes: csvRows(findZipText(bytes, 'routes.txt')),
+    });
+    scheduleCacheAt = now;
+  }
+  return scheduleCache;
+}
+
+export async function trainStations(env, query = '') {
+  const schedule = await loadTrainSchedule(env);
   const needle = String(query).trim().toLowerCase();
-  return stationCache.filter((station) => !needle || station.id.toLowerCase().includes(needle)
+  return schedule.stations.filter((station) => !needle || station.id.toLowerCase().includes(needle)
     || station.name.toLowerCase().includes(needle)
     || station.stopIds.some((id) => id.toLowerCase().includes(needle))).slice(0, 50);
 }
 
-export async function trainArrivals(env, stationId) {
-  const stations = await trainStations(env);
-  const station = stations.find((item) => item.id === stationId);
-  if (!station) throw new ProviderError('INVALID_INPUT', 'Choose a station from the current station directory.', 400);
-  const bytes = await ltaFeedBytes('GTFSRealtimeTrainTripUpdates', env);
-  let feed;
-  try { feed = decodeGtfsRealtime(bytes); }
-  catch { throw new ProviderError('UPSTREAM_INVALID', 'The train realtime feed could not be decoded.', 502); }
+function realtimeTrainArrivals(feed, station, now) {
   const allowed = new Set([station.id, ...station.stopIds]);
-  const now = Math.floor(Date.now() / 1000);
   const arrivals = [];
   for (const entity of feed.entities) {
     const update = entity.tripUpdate;
@@ -76,8 +180,21 @@ export async function trainArrivals(env, stationId) {
       });
     }
   }
-  arrivals.sort((a, b) => Date.parse(a.estimatedArrival) - Date.parse(b.estimatedArrival));
-  return { station, arrivals: arrivals.slice(0, 20) };
+  return arrivals.sort((a, b) => Date.parse(a.estimatedArrival) - Date.parse(b.estimatedArrival)).slice(0, 20);
+}
+
+export async function trainArrivals(env, stationId) {
+  const schedule = await loadTrainSchedule(env);
+  const station = schedule.stations.find((item) => item.id === stationId);
+  if (!station) throw new ProviderError('INVALID_INPUT', 'Choose a station from the current station directory.', 400);
+  const bytes = await ltaFeedBytes('GTFSRealtimeTrainTripUpdates', env);
+  let feed;
+  try { feed = decodeGtfsRealtime(bytes); }
+  catch { throw new ProviderError('UPSTREAM_INVALID', 'The train realtime feed could not be decoded.', 502); }
+  const liveArrivals = realtimeTrainArrivals(feed, station, Math.floor(Date.now() / 1000));
+  if (liveArrivals.length) return { station, arrivals: liveArrivals, status: 'live' };
+  const scheduled = scheduledTrainArrivals(schedule, station);
+  return { station, arrivals: scheduled, status: scheduled.length ? 'scheduled' : 'unavailable' };
 }
 
 export async function trainAlerts(env) {
@@ -91,4 +208,4 @@ export async function trainAlerts(env) {
   }));
 }
 
-export function clearTrainCache() { stationCache = null; stationCacheAt = 0; stopCache = null; }
+export function clearTrainCache() { scheduleCache = null; scheduleCacheAt = 0; }

@@ -30,9 +30,9 @@ Dynamic datasets list Bus Arrival, Bus Stops, Bus Services, Bus Routes, GTFS Sch
   - `GET https://datamall2.mytransport.sg/ltaodataservice/GTFSRealTimeTrainServiceAlerts` — GTFS realtime service-alert protobuf via a temporary `Link`.
   - `GET https://datamall2.mytransport.sg/ltaodataservice/GTFSRealtimeTrainTripUpdates` — GTFS realtime trip-update protobuf via a temporary `Link`; the guide scopes this feed to train disruptions.
 - All three requests use the `AccountKey` header. The guide’s documented temporary host is `dmprod-datasets.s3.ap-southeast-1.amazonaws.com`, with links expiring after 15 minutes. The implementation applies an exact allowlist for that host and the LTA/Data.gov.sg API hosts; it never follows arbitrary hosts.
-- The implementation parses `stops.txt` and groups platform records using `parent_station`, then decodes only the authorized TripUpdate fields required for station arrivals. It does not assume every listed station or line has realtime coverage.
+- The implementation parses `stops.txt` and groups platform records using `parent_station`; it also indexes `trips.txt`, `stop_times.txt`, `routes.txt`, `calendar.txt`, and `calendar_dates.txt` to produce the next planned arrivals. These results are explicitly marked `scheduled` and are never labeled live.
 - The separate legacy `TrainServiceAlerts` JSON endpoint remains supported for existing alerts; the GTFS service-alert protobuf feed requires a separate decoder before it can replace that path.
-- Feed IDs, platform mapping, current coverage, quotas, and redistribution terms require an authorized sample and are **PENDING**. A missing or empty prediction feed is shown as `unavailable`, never as zero minutes.
+- Feed IDs, platform mapping, current coverage, quotas, and redistribution terms require an authorized sample and are **PENDING**. When the disruption-only Trip Updates feed has no matching station predictions, the app falls back to the current planned schedule and labels it `scheduled`; it does not calculate or imply delay.
 
 ### Important train coverage caveat
 
