@@ -2,8 +2,9 @@ export const STORAGE_KEY = 'sg-transit-state-v1';
 export const STORAGE_VERSION = 1;
 
 const DEFAULT_POLLING_SECONDS = 30;
+const DEFAULT_NEARBY_RADIUS = 500;
 const VALID_POLLING_SECONDS = [15, 30, 45, 60];
-const emptyState = () => ({ version: STORAGE_VERSION, favourites: [], recent: [], theme: 'system', pollingSeconds: DEFAULT_POLLING_SECONDS });
+const emptyState = () => ({ version: STORAGE_VERSION, favourites: [], recent: [], theme: 'system', pollingSeconds: DEFAULT_POLLING_SECONDS, nearbyRadius: DEFAULT_NEARBY_RADIUS });
 
 function validFavourite(value) {
   const kinds = ['bus', 'bus-stop', 'bus-service', 'train', 'place'];
@@ -23,6 +24,7 @@ export function sanitizeState(value) {
   state.recent = Array.isArray(value.recent) ? value.recent.filter((item) => item && ['bus', 'bus-stop', 'bus-service', 'train', 'place'].includes(item.kind)).slice(0, 10) : [];
   state.theme = ['system', 'light', 'dark'].includes(value.theme) ? value.theme : 'system';
   state.pollingSeconds = VALID_POLLING_SECONDS.includes(value.pollingSeconds) ? value.pollingSeconds : DEFAULT_POLLING_SECONDS;
+  state.nearbyRadius = [250, 500, 1000, 2000].includes(value.nearbyRadius) ? value.nearbyRadius : DEFAULT_NEARBY_RADIUS;
   return state;
 }
 

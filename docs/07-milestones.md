@@ -24,3 +24,6 @@ Frontend checkpoint (2026-11-08): one accessible search bar now drives transport
 - [x] M14: inline star saving with saved-first search suggestions and empty-query saved entries
 
 Frontend checkpoint (2026-11-09): the dedicated Saved tab was removed; saved bus stops, services, stations, and nearby places are shown and managed directly in global search.
+- [x] M15: move nearby radius preference into settings and remove it from the main search page
+
+Frontend checkpoint (2026-11-09): nearby location searches use the persisted 500 m default or the user-selected settings radius.

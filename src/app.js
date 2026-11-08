@@ -412,7 +412,7 @@ async function nearby(latitude, longitude) {
   clearResults();
   setStatus('Finding nearby bus stops and MRT/LRT stations…');
   try {
-    const radius = $('#nearby-radius').value;
+    const radius = state.saved.nearbyRadius;
     const body = await api(`/api/nearby?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}&radius=${radius}`);
     for (const [label, records] of [['Bus stops', body.data.buses], ['Train stations', body.data.trains]]) {
       results.append(node('h2', label));
@@ -453,11 +453,11 @@ $('#location-button').addEventListener('click', () => {
   setStatus('Waiting for your permission…');
   navigator.geolocation.getCurrentPosition(({ coords }) => nearby(coords.latitude, coords.longitude), () => setStatus('Location permission was denied or unavailable. Nothing was saved.'), { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
 });
-$('#settings-button').addEventListener('click', () => { $('#theme-select').value = state.saved.theme; $('#polling-select').value = String(state.saved.pollingSeconds); $('#settings-dialog').showModal(); });
+$('#settings-button').addEventListener('click', () => { $('#theme-select').value = state.saved.theme; $('#polling-select').value = String(state.saved.pollingSeconds); $('#nearby-radius').value = String(state.saved.nearbyRadius); $('#settings-dialog').showModal(); });
 $('#settings-form').addEventListener('submit', (event) => {
   if (event.submitter?.id !== 'save-settings') return;
   state.saved.theme = $('#theme-select').value;
-  state.saved.pollingSeconds = Number($('#polling-select').value);
+  state.saved.pollingSeconds = Number($('#polling-select').value); state.saved.nearbyRadius = Number($('#nearby-radius').value);
   saveState(window.localStorage, state.saved);
   applyTheme();
   if (state.current) scheduleRefresh();

@@ -9,11 +9,12 @@ function memoryStorage() {
 
 test('migrates invalid local storage to a safe empty schema', () => {
   const state = sanitizeState({ version: 1, favourites: [{ kind: 'bus', code: 'bad', service: '36' }, { kind: 'bus', code: '01012', service: '36A', name: 'Stop' }], theme: 'neon', pollingSeconds: 999 });
-  assert.equal(state.favourites.length, 1); assert.equal(state.theme, 'system'); assert.equal(state.pollingSeconds, 30);
+  assert.equal(state.favourites.length, 1); assert.equal(state.theme, 'system'); assert.equal(state.pollingSeconds, 30); assert.equal(state.nearbyRadius, 500);
 });
 
 test('accepts only 15-second polling increments', () => {
   assert.equal(sanitizeState({ version: 1, pollingSeconds: 45 }).pollingSeconds, 45);
+  assert.equal(sanitizeState({ version: 1, nearbyRadius: 1000 }).nearbyRadius, 1000);
   assert.equal(sanitizeState({ version: 1, pollingSeconds: 20 }).pollingSeconds, 30);
 });
 
