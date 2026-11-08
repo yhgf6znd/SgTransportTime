@@ -27,3 +27,6 @@ Frontend checkpoint (2026-11-09): the dedicated Saved tab was removed; saved bus
 - [x] M15: move nearby radius preference into settings and remove it from the main search page
 
 Frontend checkpoint (2026-11-09): nearby location searches use the persisted 500 m default or the user-selected settings radius.
+- [x] M16: keep search suggestion text left-aligned with an inline right-side favourite star
+
+Frontend checkpoint (2026-11-09): search suggestion favourite controls stay on the same horizontal row as each result.
