@@ -10,8 +10,10 @@
 - [x] M7: hardening, CI, Workers deploy and live smoke (13–15; code/runbook complete, live credentials and deployment pending)
 - [x] M8: LTA bus directory and route parity improvements (service metadata, ordered routes, schedules, documented arrival telemetry)
 - [x] M9: configurable 15-second polling increments with a 30-second default
+Service API review checkpoint (2026-11-08): service-wide live fan-out uses uncached BusArrival calls with bounded concurrency; exact-coordinate location deduplication is covered by fixtures. Live credential behavior remains pending.
 - [x] M10: four-hour Cloudflare Workers cache for static transport datasets
 - [x] M11: canonical train station-code lookup and single-code interchange expansion
+- [x] M12: live bus service-wide arrivals, service locations, and single-service/single-stop API coverage
 
 Implementation checkpoint (2026-11-08): the bus directory, route schedule, arrival telemetry, refresh settings and static cache policy are represented in code, fixtures and docs. Provider calls, browser E2E, `npm run dev`, credential setup, and production deployment remain explicitly unverified until authorized secrets and a Workers project are supplied.
 

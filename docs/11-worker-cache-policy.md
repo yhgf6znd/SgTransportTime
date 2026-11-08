@@ -12,6 +12,7 @@ The Worker uses both the Workers response cache (`[cache] enabled = true` plus `
 These responses remain uncached and are fetched on every request:
 
 - LTA BusArrival v3 predictions
+- Service-wide bus arrivals and location aggregations (each upstream BusArrival call remains uncached)
 - LTA train Trip Updates
 - LTA train service alerts
 - OneMap place search and nearby transport lookups

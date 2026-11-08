@@ -27,3 +27,4 @@ test('Worker returns a safe error for unknown API routes', async () => {
   assert.equal(response.status, 404);
   assert.equal(body.error.code, 'NOT_FOUND');
 });
+test("Worker routes service-based bus API requests", async () => { const response = await handleRequest(new Request("https://example.test/api/bus/service-arrival?service=36&stop=123"), { ASSETS: assets() }); const body = await response.json(); assert.equal(response.status, 400); assert.equal(body.error.code, "INVALID_INPUT"); });

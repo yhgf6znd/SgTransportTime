@@ -15,6 +15,9 @@ Errors: `{ "success": false, "error": { "code": "INVALID_INPUT", "message": "...
 | `/api/bus/arrivals` | `stop` required 5 digits; `service` optional | normalized LTA BusArrival v3, up to three predictions per service |
 | `/api/bus/services` | `search` service number; `limit` optional | scheduled service directory metadata from LTA BusServices |
 | `/api/bus/routes` | `service` | LTA served-stop route data |
+| `/api/bus/service-arrivals` | `service` | live arrivals for every unique stop in every direction of one service |
+| `/api/bus/service-locations` | `service` | live bus locations from that service, with duplicate coordinate observations removed |
+| `/api/bus/service-arrival` | `service`, `stop` | live arrivals for one service at one five-digit stop |
 | `/api/train/stations` | `code` (one station code) | canonical LTA GTFS station-code hints; names are display-only |
 | `/api/train/arrivals` | `station` (one station code) | LTA GTFS Trip Updates and planned arrivals for every line in the selected interchange |
 | `/api/train/alerts` | — | LTA train service advisories |
@@ -28,6 +31,7 @@ Limit query lengths, result count and nearby radius. Bus stop codes are **string
 Bus arrivals include `stopName`/`stopRoad` when the stop catalogue is available. Each prediction preserves documented fields without inventing values: `estimatedArrival`, `estimatedLocation`, `load` (`SEA`, `SDA`, `LSD`), `wheelchairAccessible`, `vehicleType` (`SD`, `DD`, `BD`), `originCode`, `destinationCode`, `monitored`, and `visitNumber`. Destination and origin names are resolved from the server-side stop catalogue when available.
 
 Bus service data is scheduled metadata: `serviceNo`, `operator`, `direction`, `category`, origin/destination codes and names, dispatch `frequencies`, and optional `loopDescription`. Bus route data is `{ service, directions[] }`; each direction has ordered `stops[]` with stop code/name/road, coordinates, distance, and weekday/Saturday/Sunday `firstLast` times.
+Service-based live responses return `{ "service": "36", "directions": [...] }`; each route stop includes the scheduled route fields plus an `arrivals` array. `/api/bus/service-locations` returns `{ "service": "36", "locations": [...] }`, where each location contains provider coordinates and nullable arrival telemetry; the API does not claim a vehicle identifier because BusArrival does not provide one. These endpoints query uncached BusArrival data for each unique route stop with bounded concurrency, so callers should poll sensibly and expect one upstream request per unique stop.
 
 Suggested bus data view:
 

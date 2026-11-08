@@ -29,7 +29,8 @@ function serviceRecord(raw, names) {
 
 export const onRequestGet = run(async ({ request, env }) => {
   const url = new URL(request.url);
-  const query = queryLength(url.searchParams.get('search'), 1, 5);
+  const query = normalizeService(queryLength(url.searchParams.get('search'), 1, 5));
+  if (!query) throw new ProviderError('INVALID_INPUT', 'Enter a valid bus service number.', 400);
   const limit = Math.min(20, Math.max(1, Number(url.searchParams.get('limit') ?? 12) || 12));
   const payload = await ltaJson(`BusServices?ServiceNo=${encodeURIComponent(query)}`, env, 7000, STATIC_CACHE_SECONDS);
   let stops = [];
@@ -39,6 +40,5 @@ export const onRequestGet = run(async ({ request, env }) => {
     .map((item) => serviceRecord(item, names))
     .filter(Boolean)
     .slice(0, limit);
-  if (!services.length && normalizeService(query) === null) throw new ProviderError('INVALID_INPUT', 'Enter a valid bus service number.', 400);
   return json(services, { source: 'LTA DataMall BusServices', status: 'scheduled', fetchedAt: new Date().toISOString(), cached: true }, 200, STATIC_CACHE_SECONDS);
 });

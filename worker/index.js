@@ -3,6 +3,9 @@ import { onRequestGet as busArrivals } from '../functions/api/bus/arrivals.js';
 import { onRequestGet as busRoutes } from '../functions/api/bus/routes.js';
 import { onRequestGet as busServices } from '../functions/api/bus/services.js';
 import { onRequestGet as busStops } from '../functions/api/bus/stops.js';
+import { onRequestGet as busServiceArrival } from '../functions/api/bus/service-arrival.js';
+import { onRequestGet as busServiceArrivals } from '../functions/api/bus/service-arrivals.js';
+import { onRequestGet as busServiceLocations } from '../functions/api/bus/service-locations.js';
 import { onRequestGet as health } from '../functions/api/health.js';
 import { onRequestGet as nearby } from '../functions/api/nearby.js';
 import { onRequestGet as placeSearch } from '../functions/api/places/search.js';
@@ -16,6 +19,9 @@ const routes = new Map([
   ['/api/bus/routes', busRoutes],
   ['/api/bus/services', busServices],
   ['/api/bus/stops', busStops],
+  ['/api/bus/service-arrival', busServiceArrival],
+  ['/api/bus/service-arrivals', busServiceArrivals],
+  ['/api/bus/service-locations', busServiceLocations],
   ['/api/nearby', nearby],
   ['/api/places/search', placeSearch],
   ['/api/train/alerts', trainAlerts],
