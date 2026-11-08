@@ -58,5 +58,5 @@ export function searchRecords(records, query, fields, limit = 20) {
 export function stationMatches(station, query) {
   const needle = String(query ?? '').trim().toLowerCase();
   if (!needle) return true;
-  return [station.id, station.name, ...(station.stopIds ?? [])].some((value) => String(value).toLowerCase().includes(needle));
+  return [station.id, ...(station.stopIds ?? [])].some((value) => String(value).toLowerCase().includes(needle));
 }

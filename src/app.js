@@ -108,50 +108,62 @@ function renderBus(data, meta) {
   }
 }
 
-function renderTrain(data, meta) {
-  clearResults();
-  const card = node('article', undefined, 'card');
-  const head = node('div', undefined, 'card-head');
-  const title = node('div');
-  title.append(node('h2', data.station.name, 'card-title'), node('p', `Verified station ID ${data.station.id}`, 'card-sub'));
-  head.append(title, saveButton({ kind: 'train', code: data.station.id, service: '', name: data.station.name }));
-  card.append(head, chip(meta.status));
-  if (!data.arrivals.length) {
-    card.append(node('p', 'No planned or realtime train arrivals are available for this station right now.', 'empty'));
-    results.append(card);
-    return;
-  }
-  results.append(card);
-
+function trainDirectionCards(container, arrivals) {
   const groups = new Map();
-  for (const arrival of data.arrivals) {
+  for (const arrival of arrivals) {
     const key = [arrival.route ?? '', arrival.directionId ?? '', arrival.destination ?? ''].join('|') || 'unknown';
     const group = groups.get(key) ?? [];
     group.push(arrival);
     groups.set(key, group);
   }
 
-  for (const arrivals of groups.values()) {
-    const direction = node('article', undefined, 'card');
-    const destination = arrivals.find((arrival) => arrival.destination)?.destination;
-    const directionId = arrivals.find((arrival) => arrival.directionId)?.directionId;
-    const routes = [...new Set(arrivals.map((arrival) => arrival.route).filter(Boolean))];
+  for (const groupArrivals of groups.values()) {
+    const direction = node('div', undefined, 'card train-direction');
+    const destination = groupArrivals.find((arrival) => arrival.destination)?.destination;
+    const directionId = groupArrivals.find((arrival) => arrival.directionId)?.directionId;
+    const routes = [...new Set(groupArrivals.map((arrival) => arrival.route).filter(Boolean))];
     const label = destination ? `To ${destination}` : directionId ? `Direction ${directionId}` : routes.length ? `Line ${routes.join(' / ')}` : 'Direction not provided';
-    const subtitle = destination && routes.length ? `Line ${routes.join(' / ')}` : directionId && routes.length ? `Line ${routes.join(' / ')}` : 'The feed did not provide a destination for these arrivals.';
+    const subtitle = routes.length ? `Line ${routes.join(' / ')}` : 'The feed did not provide a destination for these arrivals.';
     const directionHead = node('div', undefined, 'card-head');
     const directionTitle = node('div');
     directionTitle.append(node('h3', label, 'card-title'), node('p', subtitle, 'card-sub'));
     directionHead.append(directionTitle);
     direction.append(directionHead);
     const grid = node('div', undefined, 'eta-grid');
-    for (const arrival of arrivals.slice(0, 6)) {
+    for (const arrival of groupArrivals.slice(0, 6)) {
       const eta = node('div', undefined, 'eta');
       const arrivalLabel = arrival.predictionStatus === 'scheduled' ? 'Planned schedule' : 'Realtime feed';
       eta.append(node('strong', minutesLabel(arrival)), node('span', arrivalLabel));
       grid.append(eta);
     }
     direction.append(grid);
-    results.append(direction);
+    container.append(direction);
+  }
+}
+
+function renderTrain(data) {
+  clearResults();
+  const entries = Array.isArray(data.stations) && data.stations.length
+    ? data.stations
+    : data.station ? [{ station: data.station, arrivals: data.arrivals, status: data.status }] : [];
+  if (!entries.length) {
+    results.append(node('div', 'No verified train station codes were returned.', 'empty'));
+    return;
+  }
+
+  for (const entry of entries) {
+    const card = node('article', undefined, 'card');
+    const head = node('div', undefined, 'card-head');
+    const title = node('div');
+    title.append(node('h2', `${entry.station.name} · ${entry.station.id}`, 'card-title'), node('p', 'Verified station code', 'card-sub'));
+    head.append(title, saveButton({ kind: 'train', code: entry.station.id, service: '', name: entry.station.name }));
+    card.append(head, chip(entry.status));
+    if (!entry.arrivals.length) {
+      card.append(node('p', 'No planned or realtime train arrivals are available for this station right now.', 'empty'));
+    } else {
+      trainDirectionCards(card, entry.arrivals);
+    }
+    results.append(card);
   }
 }
 
@@ -319,28 +331,31 @@ async function refreshBus(stop, service) {
 async function searchTrain(event) {
   event?.preventDefault();
   const query = $('#train-query').value.trim();
-  if (!query) { setStatus('Enter a station name or ID.'); return; }
+  const codes = [...new Set(query.split(',').map((code) => code.trim()).filter(Boolean))];
+  if (!codes.length) { setStatus('Enter one or more station codes, such as NS9 or NS9,TE2.'); return; }
   try {
-    const body = await api(`/api/train/stations?search=${encodeURIComponent(query)}`);
+    const body = await api(`/api/train/stations?code=${encodeURIComponent(codes.join(','))}`);
     state.stations = body.data;
-    if (state.stations.length !== 1) {
-      renderSuggestions($('#train-suggestions'), state.stations, (item) => `${item.name} · ${item.id}`, (item) => { $('#train-query').value = item.id; searchTrain(); });
-      setStatus(state.stations.length ? 'Choose a station from the results.' : 'No verified station matched that search.');
+    if (state.stations.length !== codes.length) {
+      renderSuggestions($('#train-suggestions'), state.stations, (item) => `${item.id} · ${item.name}`, (item) => { $('#train-query').value = item.id; searchTrain(); });
+      setStatus(state.stations.length ? 'Choose a verified station code from the results.' : 'No verified station code matched that query.');
       return;
     }
-    await refreshTrain(state.stations[0]);
+    await refreshTrain(state.stations);
   } catch (error) { clearResults(); setStatus(apiError(error)); }
 }
 
-async function refreshTrain(station) {
+async function refreshTrain(stations) {
+  const stationList = Array.isArray(stations) ? stations : [stations];
+  const codes = stationList.map((station) => station.id).join(',');
   clearResults();
   setStatus('Loading train arrivals…');
   $('#refresh-button').hidden = false;
   try {
-    const body = await api(`/api/train/arrivals?station=${encodeURIComponent(station.id)}`);
-    state.current = { kind: 'train', station, data: body.data, meta: body.meta };
-    renderTrain(body.data, body.meta);
-    setStatus(body.meta.status === 'live' ? 'Updated from the verified LTA realtime feed.' : body.meta.status === 'scheduled' ? 'No disruption update was available; showing planned schedule times.' : body.meta.status === 'stale' ? 'Live data was unavailable; showing the last known planned schedule.' : 'No train arrivals are available for this station/feed.');
+    const body = await api(`/api/train/arrivals?station=${encodeURIComponent(codes)}`);
+    state.current = { kind: 'train', stations: stationList, data: body.data, meta: body.meta };
+    renderTrain(body.data);
+    setStatus(body.meta.status === 'live' ? 'Updated from the verified LTA realtime feed.' : body.meta.status === 'mixed' ? 'The selected lines have mixed live, planned, or unavailable data.' : body.meta.status === 'scheduled' ? 'No disruption update was available; showing planned schedule times.' : body.meta.status === 'stale' ? 'Live data was unavailable; showing the last known planned schedule.' : 'No train arrivals are available for these station codes.');
     scheduleRefresh();
   } catch (error) { clearResults(); setStatus(apiError(error)); }
 }
@@ -375,7 +390,7 @@ async function nearby(latitude, longitude) {
 
 function openFavourite(favourite) {
   if (favourite.kind === 'bus') { switchView('bus'); $('#bus-query').value = favourite.code; $('#bus-service').value = favourite.service; refreshBus(favourite.code, favourite.service); }
-  else { switchView('train'); $('#train-query').value = favourite.name; refreshTrain({ id: favourite.code, name: favourite.name, stopIds: [] }); }
+  else { switchView('train'); $('#train-query').value = favourite.code; refreshTrain({ id: favourite.code, name: favourite.name, stopIds: [] }); }
 }
 
 function scheduleRefresh() {
@@ -383,7 +398,7 @@ function scheduleRefresh() {
   state.timer = setTimeout(() => {
     if (!document.hidden && state.current) {
       if (state.current.kind === 'bus') refreshBus(state.current.stop, state.current.service);
-      else if (state.current.kind === 'train') refreshTrain(state.current.station);
+      else if (state.current.kind === 'train') refreshTrain(state.current.stations);
     }
   }, state.saved.pollingSeconds * 1000);
 }
@@ -403,7 +418,7 @@ function switchView(view) {
 document.querySelectorAll('.tab').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.view)));
 $('#bus-form').addEventListener('submit', searchBus);
 $('#train-form').addEventListener('submit', searchTrain);
-$('#refresh-button').addEventListener('click', () => state.current?.kind === 'bus' ? refreshBus(state.current.stop, state.current.service) : refreshTrain(state.current.station));
+$('#refresh-button').addEventListener('click', () => state.current?.kind === 'bus' ? refreshBus(state.current.stop, state.current.service) : refreshTrain(state.current.stations));
 $('#location-button').addEventListener('click', () => {
   if (!navigator.geolocation) { setStatus('Location is not available in this browser.'); return; }
   setStatus('Waiting for your permission…');

@@ -15,8 +15,8 @@ Errors: `{ "success": false, "error": { "code": "INVALID_INPUT", "message": "...
 | `/api/bus/arrivals` | `stop` required 5 digits; `service` optional | normalized LTA BusArrival v3, up to three predictions per service |
 | `/api/bus/services` | `search` service number; `limit` optional | scheduled service directory metadata from LTA BusServices |
 | `/api/bus/routes` | `service` | LTA served-stop route data |
-| `/api/train/stations` | `search` | grouped LTA GTFS station/platform directory |
-| `/api/train/arrivals` | `station` | LTA GTFS Trip Updates where feed coverage matches |
+| `/api/train/stations` | `code` (one or more comma-separated codes) | canonical LTA GTFS station-code hints; names are display-only |
+| `/api/train/arrivals` | `station` (one or more comma-separated codes) | LTA GTFS Trip Updates and planned arrivals for every requested code |
 | `/api/train/alerts` | — | LTA train service advisories |
 | `/api/places/search` | `q` | server-authenticated OneMap Search |
 | `/api/nearby` | `lat`, `lon`, `radius`; optional `type=bus\|train` | OneMap nearby bus stops and MRT/LRT stations by default; an explicit type may request one category; location is not retained |
@@ -35,4 +35,4 @@ Suggested bus data view:
 {"stopCode":"01012","services":[{"serviceNo":"36","arrivals":[{"estimatedArrival":"2026-11-02T18:12:00+08:00","load":"SEA","wheelchairAccessible":true,"vehicleType":"DD","destinationCode":"02020"}]}]}
 ```
 
-Train arrivals include `estimatedArrival`, `route`, `trip`, `directionId`, `destination`, `delaySeconds`, and `predictionStatus`. `directionId` and `destination` come from the GTFS trip metadata when supplied; the UI groups arrivals by route/direction/destination so opposing and interchange directions are displayed separately. Missing provider direction metadata is shown as `Direction not provided`, never inferred. Train coverage and live provider behavior remain credential-dependent and are not claimed live-verified by fixtures.
+Train station lookups use canonical station codes, not full names. A code query may contain up to eight comma-separated codes, for example `NS9,TE2` for an interchange; results preserve the requested code order. Train arrival data is `{ "station": object|null, "stations": [{ "station": object, "arrivals": [], "status": "live"|"scheduled"|"stale"|"unavailable" }], "arrivals": [], "status": "live"|"mixed"|"scheduled"|"stale"|"unavailable" }`. The merged `arrivals` list is provided for callers that want one view, while `stations` keeps each line separate. Each arrival includes `estimatedArrival`, `route`, `trip`, `directionId`, `destination`, `delaySeconds`, and `predictionStatus`. `directionId` and `destination` come from the GTFS trip metadata when supplied; the UI groups arrivals by route/direction/destination within each requested station code. Missing provider direction metadata is shown as `Direction not provided`, never inferred. Train coverage and live provider behavior remain credential-dependent and are not claimed live-verified by fixtures.

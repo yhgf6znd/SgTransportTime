@@ -4,14 +4,14 @@ import { strToU8, zipSync } from 'fflate';
 import { clearTrainCache, trainArrivals, trainStations } from '../../functions/_lib/train.js';
 
 const stationZip = zipSync({
-  'stops.txt': strToU8('stop_id,stop_name,location_type,parent_station,stop_lat,stop_lon\nNS25,City Hall,1,,,1.2931,103.852\nNS25-1,City Hall Platform 1,0,NS25,1.2931,103.852\nNS9,Woodlands,1,,,1.4362,103.786\nNS9-1,Woodlands Platform 1,0,NS9,1.4362,103.786\nTE2,Woodlands North,1,,,1.4482,103.785\nTE2-1,Woodlands North Platform 1,0,TE2,1.4482,103.785\n'),
+  'stops.txt': strToU8('stop_id,stop_name,location_type,parent_station,stop_lat,stop_lon\nNS25,City Hall,1,,,1.2931,103.852\nNS25-1,City Hall Platform 1,0,NS25,1.2931,103.852\nNS9,Woodlands,1,,,1.4362,103.786\nNS9-1,Woodlands Platform 1,0,NS9,1.4362,103.786\nTE2,Woodlands,1,,,1.4482,103.785\nTE2-1,Woodlands North Platform 1,0,TE2,1.4482,103.785\n'),
 });
 
 const scheduleZip = zipSync({
-  'stops.txt': strToU8('stop_id,stop_name,location_type,parent_station,stop_lat,stop_lon\nNS25,City Hall,1,,,1.2931,103.852\nNS25-1,City Hall Platform 1,0,NS25,1.2931,103.852\n'),
-  'routes.txt': strToU8('route_id,route_short_name\nNSL,NSL\n'),
-  'trips.txt': strToU8('route_id,service_id,trip_id,direction_id,trip_headsign\nNSL,weekday,trip-scheduled,0,Jurong East\n'),
-  'stop_times.txt': strToU8('trip_id,arrival_time,stop_id,stop_sequence\ntrip-scheduled,08:30:00,NS25-1,1\n'),
+  'stops.txt': strToU8('stop_id,stop_name,location_type,parent_station,stop_lat,stop_lon\nNS25,City Hall,1,,,1.2931,103.852\nNS25-1,City Hall Platform 1,0,NS25,1.2931,103.852\nNS9,Woodlands,1,,,1.4362,103.786\nNS9-1,Woodlands Platform 1,0,NS9,1.4362,103.786\nTE2,Woodlands,1,,,1.4482,103.785\nTE2-1,Woodlands Platform 1,0,TE2,1.4482,103.785\n'),
+  'routes.txt': strToU8('route_id,route_short_name\nNSL,NSL\nTEL,TEL\n'),
+  'trips.txt': strToU8('route_id,service_id,trip_id,direction_id,trip_headsign\nNSL,weekday,trip-scheduled,0,Jurong East\nNSL,weekday,trip-ns9,1,Marina South Pier\nTEL,weekday,trip-te2,0,Caldecott\n'),
+  'stop_times.txt': strToU8('trip_id,arrival_time,stop_id,stop_sequence\ntrip-scheduled,08:30:00,NS25-1,1\ntrip-ns9,08:40:00,NS9-1,1\ntrip-te2,08:50:00,TE2-1,1\n'),
   'calendar.txt': strToU8('service_id,sunday,monday,tuesday,wednesday,thursday,friday,saturday,start_date,end_date\nweekday,1,0,0,0,0,0,0,20260101,20261231\n'),
   'calendar_dates.txt': strToU8('service_id,date,exception_type\n'),
 });
@@ -21,14 +21,42 @@ test('loads station hints from stops without parsing timetable files', async () 
   globalThis.fetch = async () => new Response(stationZip, { status: 200, headers: { 'Content-Type': 'application/zip' } });
   clearTrainCache();
   try {
-    const stations = await trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'City Hall');
+    const stations = await trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'NS25');
     assert.equal(stations.length, 1);
     assert.equal(stations[0].id, 'NS25');
-    const woodlands = await trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'Woodlands');
+    await assert.rejects(() => trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'City Hall'), /comma-separated train station codes/);
+    const woodlands = await trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'NS9');
     assert.deepEqual(woodlands.map((station) => station.id), ['NS9']);
-    const woodlandsNorth = await trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'Woodlands North');
-    assert.deepEqual(woodlandsNorth.map((station) => station.id), ['TE2']);
+    const interchange = await trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'NS9,TE2');
+    assert.deepEqual(interchange.map((station) => station.id), ['NS9', 'TE2']);
   } finally {
+    globalThis.fetch = originalFetch;
+    clearTrainCache();
+  }
+});
+
+test('returns planned arrivals for every requested interchange station code', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  let requestCount = 0;
+  Date.now = () => Date.parse('2026-11-08T00:00:00Z');
+  globalThis.fetch = async (url) => {
+    requestCount += 1;
+    if (new URL(url).pathname.endsWith('/GTFSScheduleTrain')) {
+      return new Response(scheduleZip, { status: 200, headers: { 'Content-Type': 'application/zip' } });
+    }
+    return new Response('', { status: 503 });
+  };
+  clearTrainCache();
+  try {
+    const data = await trainArrivals({ LTA_ACCOUNT_KEY: 'test' }, ['NS9', 'TE2']);
+    assert.equal(requestCount, 2);
+    assert.equal(data.status, 'scheduled');
+    assert.deepEqual(data.stations.map((item) => item.station.id), ['NS9', 'TE2']);
+    assert.deepEqual(data.stations.map((item) => item.arrivals[0].route), ['NSL', 'TEL']);
+    assert.equal(data.arrivals.length, 2);
+  } finally {
+    Date.now = originalNow;
     globalThis.fetch = originalFetch;
     clearTrainCache();
   }

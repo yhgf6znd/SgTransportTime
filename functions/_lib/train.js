@@ -67,6 +67,22 @@ function stationRows(rows) {
   return [...grouped.values()].filter((station) => station.id && station.name).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+const TRAIN_CODE_PATTERN = /^[A-Z]{1,5}\d{1,3}$/i;
+const TRAIN_QUERY_PATTERN = /^[A-Z0-9_.:-]{1,30}$/i;
+
+function parseTrainCodeValues(value, pattern) {
+  const values = Array.isArray(value) ? value : String(value ?? '').split(',');
+  const codes = [...new Set(values.map((code) => String(code).trim().toUpperCase()).filter(Boolean))];
+  if (!codes.length || codes.length > 8 || codes.some((code) => !pattern.test(code))) {
+    throw new ProviderError('INVALID_INPUT', 'Use one or more comma-separated train station codes, such as NS9 or NS9,TE2.', 400);
+  }
+  return codes;
+}
+
+export function parseTrainStationCodes(value) {
+  return parseTrainCodeValues(value, TRAIN_CODE_PATTERN);
+}
+
 export function buildTrainSchedule({ stops = [], trips = [], stopTimes = [], calendar = [], calendarDates = [], routes = [] }) {
   const routeNames = new Map(routes.map((row) => [String(row.route_id ?? '').trim(), String(row.route_short_name ?? row.route_long_name ?? row.route_id ?? '').trim()]));
   const tripRecords = new Map();
@@ -178,18 +194,34 @@ async function loadStationDirectory(env) {
   return stationCache;
 }
 
-async function loadTrainSchedule(env, stationId) {
+function cachedTrainSchedule(stationId, now) {
+  const schedule = scheduleCache.get(stationId);
+  if (!schedule) return null;
+  const station = schedule.stations.find((item) => item.id.toLowerCase() === stationId.toLowerCase());
+  if (!station) return null;
+  return {
+    schedule,
+    station,
+    fresh: now - (scheduleCacheAt.get(stationId) ?? 0) <= SCHEDULE_CACHE_MS,
+  };
+}
+
+async function loadTrainSchedules(env, stationIds) {
+  const requestedIds = parseTrainStationCodes(stationIds);
   const now = Date.now();
-  const previousSchedule = scheduleCache.get(stationId);
-  const cachedAt = scheduleCacheAt.get(stationId) ?? 0;
-  if (previousSchedule && now - cachedAt <= SCHEDULE_CACHE_MS) return { schedule: previousSchedule, stale: false };
+  const previous = requestedIds.map((stationId) => cachedTrainSchedule(stationId, now));
+  if (previous.every(Boolean) && previous.every((item) => item.fresh)) {
+    return { items: previous.map(({ schedule, station }) => ({ schedule, station, stale: false })) };
+  }
+
   try {
     const bytes = await ltaFeedBytes('GTFSScheduleTrain', env, 12000, STATIC_CACHE_SECONDS);
     const files = extractGtfsFiles(bytes, TRAIN_FILES);
     const stops = csvRows(findZipText(files, 'stops.txt'));
-    const station = stationRows(stops).find((item) => item.id === stationId);
-    if (!station) throw new ProviderError('INVALID_INPUT', 'Choose a station from the current station directory.', 400);
-    const stopIds = new Set([station.id, ...station.stopIds]);
+    const stations = stationRows(stops);
+    const selectedStations = requestedIds.map((stationId) => stations.find((station) => station.id.toLowerCase() === stationId.toLowerCase()));
+    if (selectedStations.some((station) => !station)) throw new ProviderError('INVALID_INPUT', 'Choose verified train station codes from the current station directory.', 400);
+    const stopIds = new Set(selectedStations.flatMap((station) => [station.id, ...station.stopIds]));
     const nextSchedule = buildTrainSchedule({
       stops,
       trips: csvRows(findZipText(files, 'trips.txt')),
@@ -198,29 +230,39 @@ async function loadTrainSchedule(env, stationId) {
       calendarDates: csvRows(findZipText(files, 'calendar_dates.txt')),
       routes: csvRows(findZipText(files, 'routes.txt')),
     });
-    if (!nextSchedule.entriesByStopId.size) throw new ProviderError('UPSTREAM_INVALID', 'The LTA train schedule contained no timetable records for this station.', 502);
-    scheduleCache.set(stationId, nextSchedule);
-    scheduleCacheAt.set(stationId, now);
-    scheduleCacheStale.delete(stationId);
-    return { schedule: nextSchedule, stale: false };
+    if (!nextSchedule.entriesByStopId.size) throw new ProviderError('UPSTREAM_INVALID', 'The LTA train schedule contained no timetable records for these stations.', 502);
+    for (const station of selectedStations) {
+      scheduleCache.set(station.id, nextSchedule);
+      scheduleCacheAt.set(station.id, now);
+      scheduleCacheStale.delete(station.id);
+    }
+    return { items: selectedStations.map((station) => ({ schedule: nextSchedule, station, stale: false })) };
   } catch (error) {
-    if (!previousSchedule) throw error;
-    scheduleCacheStale.add(stationId);
-    return { schedule: previousSchedule, stale: true };
+    if (previous.every(Boolean)) {
+      for (const stationId of requestedIds) scheduleCacheStale.add(stationId);
+      return { items: previous.map(({ schedule, station }) => ({ schedule, station, stale: true })) };
+    }
+    throw error;
   }
 }
 
 export async function trainStations(env, query = '') {
   const stations = await loadStationDirectory(env);
-  const needle = String(query).trim().toLowerCase();
-  const matches = stations.filter((station) => !needle || station.id.toLowerCase().includes(needle)
-    || station.name.toLowerCase().includes(needle)
-    || station.stopIds.some((id) => id.toLowerCase().includes(needle)));
-  if (!needle) return matches.slice(0, 50);
-  const exact = matches.filter((station) => station.id.toLowerCase() === needle
-    || station.name.toLowerCase() === needle
-    || station.stopIds.some((id) => id.toLowerCase() === needle));
-  return (exact.length ? exact : matches).slice(0, 50);
+  const codes = parseTrainCodeValues(query, TRAIN_QUERY_PATTERN);
+  const results = [];
+  const seen = new Set();
+  for (const code of codes) {
+    const exact = stations.filter((station) => station.id.toLowerCase() === code.toLowerCase()
+      || station.stopIds.some((id) => id.toLowerCase() === code.toLowerCase()));
+    const matches = exact.length ? exact : stations.filter((station) => station.id.toLowerCase().includes(code.toLowerCase())
+      || station.stopIds.some((id) => id.toLowerCase().includes(code.toLowerCase())));
+    for (const station of matches) {
+      if (seen.has(station.id)) continue;
+      seen.add(station.id);
+      results.push(station);
+    }
+  }
+  return results.slice(0, 50);
 }
 
 function scheduleTripMetadata(schedule) {
@@ -261,23 +303,35 @@ function realtimeTrainArrivals(feed, station, now, schedule) {
   return arrivals.sort((a, b) => Date.parse(a.estimatedArrival) - Date.parse(b.estimatedArrival)).slice(0, 20);
 }
 
-export async function trainArrivals(env, stationId) {
-  const loaded = await loadTrainSchedule(env, stationId);
-  const schedule = loaded.schedule;
-  const station = schedule.stations.find((item) => item.id === stationId);
-  if (!station) throw new ProviderError('INVALID_INPUT', 'Choose a station from the current station directory.', 400);
+function aggregateTrainStatus(items) {
+  const statuses = new Set(items.map((item) => item.status));
+  return statuses.size === 1 ? items[0].status : 'mixed';
+}
 
-  const scheduled = scheduledTrainArrivals(schedule, station);
+export async function trainArrivals(env, stationIds) {
+  const loaded = await loadTrainSchedules(env, stationIds);
+  let feed = null;
   try {
     const bytes = await ltaFeedBytes('GTFSRealtimeTrainTripUpdates', env);
-    const feed = decodeGtfsRealtime(bytes);
-    const liveArrivals = realtimeTrainArrivals(feed, station, Math.floor(Date.now() / 1000), schedule);
-    if (liveArrivals.length) return { station, arrivals: liveArrivals, status: 'live' };
+    feed = decodeGtfsRealtime(bytes);
   } catch {
     // The published schedule remains the honest fallback when realtime data is unavailable.
   }
 
-  return { station, arrivals: scheduled, status: scheduled.length ? (loaded.stale ? 'stale' : 'scheduled') : 'unavailable' };
+  const items = loaded.items.map((item) => {
+    const scheduled = scheduledTrainArrivals(item.schedule, item.station);
+    const liveArrivals = feed ? realtimeTrainArrivals(feed, item.station, Math.floor(Date.now() / 1000), item.schedule) : [];
+    const arrivals = liveArrivals.length ? liveArrivals : scheduled;
+    const status = liveArrivals.length ? 'live' : scheduled.length ? (item.stale ? 'stale' : 'scheduled') : 'unavailable';
+    return { station: item.station, arrivals, status };
+  });
+  const status = aggregateTrainStatus(items);
+  return {
+    station: items.length === 1 ? items[0].station : null,
+    stations: items,
+    arrivals: items.flatMap((item) => item.arrivals),
+    status,
+  };
 }
 
 export async function trainAlerts(env) {
