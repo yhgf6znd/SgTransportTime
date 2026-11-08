@@ -48,5 +48,8 @@ Frontend checkpoint (2026-11-09): short ETAs show both the minute countdown and 
 Frontend checkpoint (2026-11-09): different destinations on the same line-direction share one arrival card.
 
 - [x] M21: show LTA live bus crowd and wheelchair-accessibility indicators beside each ETA
+- [x] M22: refresh only the data section with an accessible loading indicator
 
 Frontend checkpoint (2026-11-09): provider-supplied load and wheelchair flags are rendered as accessible inline badges.
+
+Frontend checkpoint (2026-11-09): refresh requests replace only the arrival results with an accessible loading indicator and leave the page shell/search controls intact.

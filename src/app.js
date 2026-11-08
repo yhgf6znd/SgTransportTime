@@ -13,7 +13,17 @@ function node(tag, text, className) {
 }
 
 function setStatus(message) { $('#status').textContent = message; }
-function clearResults() { results.replaceChildren(); }
+function clearResults() {
+  results.replaceChildren();
+  results.removeAttribute('aria-busy');
+}
+function showDataLoading(message) {
+  const loading = node('div', undefined, 'data-loading');
+  loading.setAttribute('role', 'status');
+  loading.append(node('span', undefined, 'loading-spinner'), node('span', message));
+  results.replaceChildren(loading);
+  results.setAttribute('aria-busy', 'true');
+}
 function apiError(error) { return error instanceof Error ? error.message : 'The request could not be completed.'; }
 
 async function api(path) {
@@ -400,9 +410,11 @@ function scheduleSearch() {
 }
 
 async function refreshBus(stop, service) {
-  clearResults();
+  clearTimeout(state.timer);
+  showDataLoading('Loading bus arrivals…');
   setStatus('Loading bus arrivals…');
   $('#refresh-button').hidden = false;
+  $('#refresh-button').disabled = true;
   try {
     const body = await api(`/api/bus/arrivals?stop=${encodeURIComponent(stop)}${service ? `&service=${encodeURIComponent(service)}` : ''}`);
     state.current = { kind: 'bus', stop, service, data: body.data, meta: body.meta };
@@ -410,12 +422,15 @@ async function refreshBus(stop, service) {
     setStatus(`Updated ${new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', timeStyle: 'short' }).format(new Date())} SGT · ${body.meta.source}`);
     scheduleRefresh();
   } catch (error) { clearResults(); setStatus(apiError(error)); }
+  finally { $('#refresh-button').disabled = false; }
 }
 
 async function refreshTrain(station) {
-  clearResults();
+  clearTimeout(state.timer);
+  showDataLoading('Loading train arrivals…');
   setStatus('Loading train arrivals…');
   $('#refresh-button').hidden = false;
+  $('#refresh-button').disabled = true;
   try {
     const body = await api(`/api/train/arrivals?station=${encodeURIComponent(station.id)}`);
     state.current = { kind: 'train', station, data: body.data, meta: body.meta };
@@ -423,6 +438,7 @@ async function refreshTrain(station) {
     setStatus(body.meta.status === 'live' ? 'Updated from the verified LTA realtime feed.' : body.meta.status === 'mixed' ? 'The interchange lines have mixed live, planned, or unavailable data.' : body.meta.status === 'scheduled' ? 'No disruption update was available; showing planned schedule times.' : body.meta.status === 'stale' ? 'Live data was unavailable; showing the last known planned schedule.' : 'No train arrivals are available for this station code.');
     scheduleRefresh();
   } catch (error) { clearResults(); setStatus(apiError(error)); }
+  finally { $('#refresh-button').disabled = false; }
 }
 
 async function loadAlerts() {
@@ -435,7 +451,7 @@ async function loadAlerts() {
 }
 
 async function nearby(latitude, longitude) {
-  clearResults();
+  showDataLoading('Finding nearby bus stops and MRT/LRT stations…');
   setStatus('Finding nearby bus stops and MRT/LRT stations…');
   try {
     const radius = state.saved.nearbyRadius;
@@ -450,7 +466,7 @@ async function nearby(latitude, longitude) {
       }
     }
     setStatus(`Nearby bus stops and MRT/LRT stations within ${radius} m. Location was used transiently only.`);
-  } catch (error) { setStatus(apiError(error)); }
+  } catch (error) { clearResults(); setStatus(apiError(error)); }
 }
 
 
