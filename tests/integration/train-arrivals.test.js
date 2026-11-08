@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { strToU8, zipSync } from 'fflate';
-import { clearTrainCache, trainArrivals } from '../../functions/_lib/train.js';
+import { clearTrainCache, trainArrivals, trainStations } from '../../functions/_lib/train.js';
+
+const stationZip = zipSync({
+  'stops.txt': strToU8('stop_id,stop_name,location_type,parent_station,stop_lat,stop_lon\nNS25,City Hall,1,,,1.2931,103.852\nNS25-1,City Hall Platform 1,0,NS25,1.2931,103.852\n'),
+});
 
 const scheduleZip = zipSync({
   'stops.txt': strToU8('stop_id,stop_name,location_type,parent_station,stop_lat,stop_lon\nNS25,City Hall,1,,,1.2931,103.852\nNS25-1,City Hall Platform 1,0,NS25,1.2931,103.852\n'),
@@ -10,6 +14,20 @@ const scheduleZip = zipSync({
   'stop_times.txt': strToU8('trip_id,arrival_time,stop_id,stop_sequence\ntrip-scheduled,08:30:00,NS25-1,1\n'),
   'calendar.txt': strToU8('service_id,sunday,monday,tuesday,wednesday,thursday,friday,saturday,start_date,end_date\nweekday,1,0,0,0,0,0,0,20260101,20261231\n'),
   'calendar_dates.txt': strToU8('service_id,date,exception_type\n'),
+});
+
+test('loads station hints from stops without parsing timetable files', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(stationZip, { status: 200, headers: { 'Content-Type': 'application/zip' } });
+  clearTrainCache();
+  try {
+    const stations = await trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'City Hall');
+    assert.equal(stations.length, 1);
+    assert.equal(stations[0].id, 'NS25');
+  } finally {
+    globalThis.fetch = originalFetch;
+    clearTrainCache();
+  }
 });
 
 test('uses scheduled train arrivals when realtime trip updates fail', async () => {

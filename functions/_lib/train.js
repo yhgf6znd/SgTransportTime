@@ -7,14 +7,23 @@ import { STATIC_CACHE_SECONDS } from './cache.js';
 const SINGAPORE_OFFSET_MS = 8 * 60 * 60 * 1000;
 const SERVICE_DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const SCHEDULE_CACHE_MS = STATIC_CACHE_SECONDS * 1000;
-let scheduleCache = null;
-let scheduleCacheAt = 0;
-let scheduleCacheStale = false;
+const TRAIN_FILES = ['stops.txt', 'trips.txt', 'stop_times.txt', 'calendar.txt', 'calendar_dates.txt', 'routes.txt'];
+let stationCache = null;
+let stationCacheAt = 0;
+let stationCacheStale = false;
+const scheduleCache = new Map();
+const scheduleCacheAt = new Map();
+const scheduleCacheStale = new Set();
 
 function findZipText(files, suffix) {
   const name = Object.keys(files).find((entry) => entry.toLowerCase().endsWith(suffix));
   if (!name) throw new ProviderError('UPSTREAM_INVALID', `The train schedule is missing ${suffix}.`, 502);
   return strFromU8(files[name]);
+}
+
+function extractGtfsFiles(bytes, suffixes) {
+  const wanted = suffixes.map((suffix) => suffix.toLowerCase());
+  return unzipSync(bytes, { filter: (file) => wanted.some((suffix) => String(file.name).toLowerCase().endsWith(suffix)) });
 }
 
 function parseGtfsClock(value) {
@@ -139,44 +148,62 @@ export function scheduledTrainArrivals(schedule, station, nowMs = Date.now(), ho
   }).slice(0, 20);
 }
 
-async function loadTrainSchedule(env) {
+async function loadStationDirectory(env) {
   const now = Date.now();
-  if (!scheduleCache || now - scheduleCacheAt > SCHEDULE_CACHE_MS) {
-    const previousSchedule = scheduleCache;
+  if (!stationCache || now - stationCacheAt > SCHEDULE_CACHE_MS) {
+    const previousStations = stationCache;
     try {
       const bytes = await ltaFeedBytes('GTFSScheduleTrain', env, 12000, STATIC_CACHE_SECONDS);
-      // Decompress the bulk GTFS archive once. Repeating unzipSync for every
-      // file can exceed a Worker CPU or memory limit on the production feed.
-      const files = unzipSync(bytes);
-      const nextSchedule = buildTrainSchedule({
-        stops: csvRows(findZipText(files, 'stops.txt')),
-        trips: csvRows(findZipText(files, 'trips.txt')),
-        stopTimes: csvRows(findZipText(files, 'stop_times.txt')),
-        calendar: csvRows(findZipText(files, 'calendar.txt')),
-        calendarDates: csvRows(findZipText(files, 'calendar_dates.txt')),
-        routes: csvRows(findZipText(files, 'routes.txt')),
-      });
-      if (!nextSchedule.stations.length || !nextSchedule.entriesByStopId.size) {
-        throw new ProviderError('UPSTREAM_INVALID', 'The LTA train schedule contained no usable station or timetable records.', 502);
-      }
-      scheduleCache = nextSchedule;
-      scheduleCacheAt = now;
-      scheduleCacheStale = false;
+      const files = extractGtfsFiles(bytes, ['stops.txt']);
+      const stations = stationRows(csvRows(findZipText(files, 'stops.txt')));
+      if (!stations.length) throw new ProviderError('UPSTREAM_INVALID', 'The LTA train schedule contained no station records.', 502);
+      stationCache = stations;
+      stationCacheAt = now;
+      stationCacheStale = false;
     } catch (error) {
-      // A refresh must not discard a previously valid planned timetable. It is
-      // still more useful and more honest to return scheduled data than to
-      // turn a temporary refresh failure into an unavailable station.
-      if (!previousSchedule) throw error;
-      scheduleCacheStale = true;
+      if (!previousStations) throw error;
+      stationCacheStale = true;
     }
   }
-  return scheduleCache;
+  return stationCache;
+}
+
+async function loadTrainSchedule(env, stationId) {
+  const now = Date.now();
+  const previousSchedule = scheduleCache.get(stationId);
+  const cachedAt = scheduleCacheAt.get(stationId) ?? 0;
+  if (previousSchedule && now - cachedAt <= SCHEDULE_CACHE_MS) return { schedule: previousSchedule, stale: false };
+  try {
+    const bytes = await ltaFeedBytes('GTFSScheduleTrain', env, 12000, STATIC_CACHE_SECONDS);
+    const files = extractGtfsFiles(bytes, TRAIN_FILES);
+    const stops = csvRows(findZipText(files, 'stops.txt'));
+    const station = stationRows(stops).find((item) => item.id === stationId);
+    if (!station) throw new ProviderError('INVALID_INPUT', 'Choose a station from the current station directory.', 400);
+    const stopIds = new Set([station.id, ...station.stopIds]);
+    const nextSchedule = buildTrainSchedule({
+      stops,
+      trips: csvRows(findZipText(files, 'trips.txt')),
+      stopTimes: csvRows(findZipText(files, 'stop_times.txt'), (row) => stopIds.has(String(row.stop_id ?? '').trim())),
+      calendar: csvRows(findZipText(files, 'calendar.txt')),
+      calendarDates: csvRows(findZipText(files, 'calendar_dates.txt')),
+      routes: csvRows(findZipText(files, 'routes.txt')),
+    });
+    if (!nextSchedule.entriesByStopId.size) throw new ProviderError('UPSTREAM_INVALID', 'The LTA train schedule contained no timetable records for this station.', 502);
+    scheduleCache.set(stationId, nextSchedule);
+    scheduleCacheAt.set(stationId, now);
+    scheduleCacheStale.delete(stationId);
+    return { schedule: nextSchedule, stale: false };
+  } catch (error) {
+    if (!previousSchedule) throw error;
+    scheduleCacheStale.add(stationId);
+    return { schedule: previousSchedule, stale: true };
+  }
 }
 
 export async function trainStations(env, query = '') {
-  const schedule = await loadTrainSchedule(env);
+  const stations = await loadStationDirectory(env);
   const needle = String(query).trim().toLowerCase();
-  return schedule.stations.filter((station) => !needle || station.id.toLowerCase().includes(needle)
+  return stations.filter((station) => !needle || station.id.toLowerCase().includes(needle)
     || station.name.toLowerCase().includes(needle)
     || station.stopIds.some((id) => id.toLowerCase().includes(needle))).slice(0, 50);
 }
@@ -205,7 +232,8 @@ function realtimeTrainArrivals(feed, station, now) {
 }
 
 export async function trainArrivals(env, stationId) {
-  const schedule = await loadTrainSchedule(env);
+  const loaded = await loadTrainSchedule(env, stationId);
+  const schedule = loaded.schedule;
   const station = schedule.stations.find((item) => item.id === stationId);
   if (!station) throw new ProviderError('INVALID_INPUT', 'Choose a station from the current station directory.', 400);
 
@@ -219,7 +247,7 @@ export async function trainArrivals(env, stationId) {
     // The published schedule remains the honest fallback when realtime data is unavailable.
   }
 
-  return { station, arrivals: scheduled, status: scheduled.length ? (scheduleCacheStale ? 'stale' : 'scheduled') : 'unavailable' };
+  return { station, arrivals: scheduled, status: scheduled.length ? (loaded.stale ? 'stale' : 'scheduled') : 'unavailable' };
 }
 
 export async function trainAlerts(env) {
@@ -233,6 +261,13 @@ export async function trainAlerts(env) {
   }));
 }
 
-export function trainScheduleStatus() { return scheduleCacheStale ? 'stale' : 'scheduled'; }
+export function trainScheduleStatus() { return stationCacheStale ? 'stale' : 'scheduled'; }
 
-export function clearTrainCache() { scheduleCache = null; scheduleCacheAt = 0; scheduleCacheStale = false; }
+export function clearTrainCache() {
+  stationCache = null;
+  stationCacheAt = 0;
+  stationCacheStale = false;
+  scheduleCache.clear();
+  scheduleCacheAt.clear();
+  scheduleCacheStale.clear();
+}

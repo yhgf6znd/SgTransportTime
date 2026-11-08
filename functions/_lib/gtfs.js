@@ -114,9 +114,21 @@ function decodeEvent(bytes) {
   return { delay: event[1] ?? 0, time: event[2] ?? 0 };
 }
 
-export function csvRows(csv) {
+export function csvRows(csv, include) {
   const rows = [];
+  let headers = null;
   let fields = [], field = '', quoted = false;
+  const finishRow = () => {
+    fields.push(field);
+    if (!fields.some(Boolean)) { fields = []; field = ''; return; }
+    if (!headers) headers = fields.map((value) => value.replace(/^\uFEFF/, ''));
+    else {
+      const row = Object.fromEntries(headers.map((header, index) => [header, fields[index] ?? '']));
+      if (!include || include(row)) rows.push(row);
+    }
+    fields = [];
+    field = '';
+  };
   for (let index = 0; index < csv.length; index += 1) {
     const character = csv[index];
     if (character === '"') {
@@ -125,10 +137,9 @@ export function csvRows(csv) {
     } else if (character === ',' && !quoted) { fields.push(field); field = ''; }
     else if ((character === '\n' || character === '\r') && !quoted) {
       if (character === '\r' && csv[index + 1] === '\n') index += 1;
-      fields.push(field); if (fields.some(Boolean)) rows.push(fields); fields = []; field = '';
+      finishRow();
     } else field += character;
   }
-  if (field || fields.length) { fields.push(field); rows.push(fields); }
-  const headers = (rows.shift() ?? []).map((value) => value.replace(/^\uFEFF/, ''));
-  return rows.map((row) => Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ''])));
+  if (field || fields.length) finishRow();
+  return rows;
 }
