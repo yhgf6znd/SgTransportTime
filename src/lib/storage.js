@@ -1,7 +1,9 @@
 export const STORAGE_KEY = 'sg-transit-state-v1';
 export const STORAGE_VERSION = 1;
 
-const emptyState = () => ({ version: STORAGE_VERSION, favourites: [], recent: [], theme: 'system', pollingSeconds: 20 });
+const DEFAULT_POLLING_SECONDS = 30;
+const VALID_POLLING_SECONDS = [15, 30, 45, 60];
+const emptyState = () => ({ version: STORAGE_VERSION, favourites: [], recent: [], theme: 'system', pollingSeconds: DEFAULT_POLLING_SECONDS });
 
 function validFavourite(value) {
   if (!value || (value.kind !== 'bus' && value.kind !== 'train')) return false;
@@ -16,7 +18,7 @@ export function sanitizeState(value) {
   state.favourites = Array.isArray(value.favourites) ? value.favourites.map(validFavourite).filter(Boolean).slice(0, 100) : [];
   state.recent = Array.isArray(value.recent) ? value.recent.filter((item) => item && (item.kind === 'bus' || item.kind === 'train')).slice(0, 10) : [];
   state.theme = ['system', 'light', 'dark'].includes(value.theme) ? value.theme : 'system';
-  state.pollingSeconds = [15, 20, 30, 60].includes(value.pollingSeconds) ? value.pollingSeconds : 20;
+  state.pollingSeconds = VALID_POLLING_SECONDS.includes(value.pollingSeconds) ? value.pollingSeconds : DEFAULT_POLLING_SECONDS;
   return state;
 }
 

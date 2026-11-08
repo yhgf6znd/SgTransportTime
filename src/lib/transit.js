@@ -1,4 +1,4 @@
-export const VALID_POLLING_SECONDS = [15, 20, 30, 60];
+export const VALID_POLLING_SECONDS = [15, 30, 45, 60];
 
 export function normalizeStopCode(value) {
   const code = String(value ?? '').trim();
