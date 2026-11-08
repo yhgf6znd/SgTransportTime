@@ -30,7 +30,7 @@ For live local requests, create a gitignored `.dev.vars` with `LTA_ACCOUNT_KEY` 
 ## Runtime behavior
 
 - Bus arrival requests use LTA DataMall BusArrival v3 and display provider timestamps, load/accessibility when supplied, and `live` status.
-- Train stations are queried by canonical LTA GTFS station code (including comma-separated interchange codes such as `NS9,TE2`). Realtime Trip Updates are feed-specific; absent predictions show `unavailable`, with planned arrivals retained as the fallback.
+- Train stations are queried by canonical LTA GTFS station code; either code at an interchange (for example `NS9` or `TE2`) returns all lines. Realtime Trip Updates are feed-specific; absent predictions show `unavailable`, with planned arrivals retained as the fallback.
 - OneMap token issuance and search are server-side. Browser geolocation is requested only after the user presses the nearby button and is not stored.
 - Favourites/settings are schema-versioned local storage. The service worker caches only the static shell; it never caches `/api/*` arrival responses.
 

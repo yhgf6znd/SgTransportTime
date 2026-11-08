@@ -24,18 +24,18 @@ test('loads station hints from stops without parsing timetable files', async () 
     const stations = await trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'NS25');
     assert.equal(stations.length, 1);
     assert.equal(stations[0].id, 'NS25');
-    await assert.rejects(() => trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'City Hall'), /comma-separated train station codes/);
+    await assert.rejects(() => trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'City Hall'), /one train station code/);
     const woodlands = await trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'NS9');
     assert.deepEqual(woodlands.map((station) => station.id), ['NS9']);
-    const interchange = await trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'NS9,TE2');
-    assert.deepEqual(interchange.map((station) => station.id), ['NS9', 'TE2']);
+    const secondLine = await trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'TE2');
+    assert.deepEqual(secondLine.map((station) => station.id), ['TE2']);
   } finally {
     globalThis.fetch = originalFetch;
     clearTrainCache();
   }
 });
 
-test('returns planned arrivals for every requested interchange station code', async () => {
+test('expands either interchange code to planned arrivals for every line', async () => {
   const originalFetch = globalThis.fetch;
   const originalNow = Date.now;
   let requestCount = 0;
@@ -49,12 +49,16 @@ test('returns planned arrivals for every requested interchange station code', as
   };
   clearTrainCache();
   try {
-    const data = await trainArrivals({ LTA_ACCOUNT_KEY: 'test' }, ['NS9', 'TE2']);
+    const fromNorthSouth = await trainArrivals({ LTA_ACCOUNT_KEY: 'test' }, 'NS9');
     assert.equal(requestCount, 2);
-    assert.equal(data.status, 'scheduled');
-    assert.deepEqual(data.stations.map((item) => item.station.id), ['NS9', 'TE2']);
-    assert.deepEqual(data.stations.map((item) => item.arrivals[0].route), ['NSL', 'TEL']);
-    assert.equal(data.arrivals.length, 2);
+    assert.equal(fromNorthSouth.status, 'scheduled');
+    assert.deepEqual(fromNorthSouth.stations.map((item) => item.station.id), ['NS9', 'TE2']);
+    assert.deepEqual(fromNorthSouth.stations.map((item) => item.arrivals[0].route), ['NSL', 'TEL']);
+    assert.equal(fromNorthSouth.arrivals.length, 2);
+    const fromThomsonEast = await trainArrivals({ LTA_ACCOUNT_KEY: 'test' }, 'TE2');
+    assert.equal(requestCount, 3);
+    assert.deepEqual(fromThomsonEast.stations.map((item) => item.station.id), ['NS9', 'TE2']);
+    assert.deepEqual(fromThomsonEast.arrivals.map((item) => item.route), ['NSL', 'TEL']);
   } finally {
     Date.now = originalNow;
     globalThis.fetch = originalFetch;

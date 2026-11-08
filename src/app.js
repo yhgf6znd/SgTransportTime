@@ -331,31 +331,28 @@ async function refreshBus(stop, service) {
 async function searchTrain(event) {
   event?.preventDefault();
   const query = $('#train-query').value.trim();
-  const codes = [...new Set(query.split(',').map((code) => code.trim()).filter(Boolean))];
-  if (!codes.length) { setStatus('Enter one or more station codes, such as NS9 or NS9,TE2.'); return; }
+  if (!query) { setStatus('Enter one station code, such as NS9 or TE2.'); return; }
   try {
-    const body = await api(`/api/train/stations?code=${encodeURIComponent(codes.join(','))}`);
+    const body = await api(`/api/train/stations?code=${encodeURIComponent(query)}`);
     state.stations = body.data;
-    if (state.stations.length !== codes.length) {
+    if (state.stations.length !== 1) {
       renderSuggestions($('#train-suggestions'), state.stations, (item) => `${item.id} · ${item.name}`, (item) => { $('#train-query').value = item.id; searchTrain(); });
       setStatus(state.stations.length ? 'Choose a verified station code from the results.' : 'No verified station code matched that query.');
       return;
     }
-    await refreshTrain(state.stations);
+    await refreshTrain(state.stations[0]);
   } catch (error) { clearResults(); setStatus(apiError(error)); }
 }
 
-async function refreshTrain(stations) {
-  const stationList = Array.isArray(stations) ? stations : [stations];
-  const codes = stationList.map((station) => station.id).join(',');
+async function refreshTrain(station) {
   clearResults();
   setStatus('Loading train arrivals…');
   $('#refresh-button').hidden = false;
   try {
-    const body = await api(`/api/train/arrivals?station=${encodeURIComponent(codes)}`);
-    state.current = { kind: 'train', stations: stationList, data: body.data, meta: body.meta };
+    const body = await api(`/api/train/arrivals?station=${encodeURIComponent(station.id)}`);
+    state.current = { kind: 'train', station, data: body.data, meta: body.meta };
     renderTrain(body.data);
-    setStatus(body.meta.status === 'live' ? 'Updated from the verified LTA realtime feed.' : body.meta.status === 'mixed' ? 'The selected lines have mixed live, planned, or unavailable data.' : body.meta.status === 'scheduled' ? 'No disruption update was available; showing planned schedule times.' : body.meta.status === 'stale' ? 'Live data was unavailable; showing the last known planned schedule.' : 'No train arrivals are available for these station codes.');
+    setStatus(body.meta.status === 'live' ? 'Updated from the verified LTA realtime feed.' : body.meta.status === 'mixed' ? 'The interchange lines have mixed live, planned, or unavailable data.' : body.meta.status === 'scheduled' ? 'No disruption update was available; showing planned schedule times.' : body.meta.status === 'stale' ? 'Live data was unavailable; showing the last known planned schedule.' : 'No train arrivals are available for this station code.');
     scheduleRefresh();
   } catch (error) { clearResults(); setStatus(apiError(error)); }
 }
@@ -398,7 +395,7 @@ function scheduleRefresh() {
   state.timer = setTimeout(() => {
     if (!document.hidden && state.current) {
       if (state.current.kind === 'bus') refreshBus(state.current.stop, state.current.service);
-      else if (state.current.kind === 'train') refreshTrain(state.current.stations);
+      else if (state.current.kind === 'train') refreshTrain(state.current.station);
     }
   }, state.saved.pollingSeconds * 1000);
 }
@@ -418,7 +415,7 @@ function switchView(view) {
 document.querySelectorAll('.tab').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.view)));
 $('#bus-form').addEventListener('submit', searchBus);
 $('#train-form').addEventListener('submit', searchTrain);
-$('#refresh-button').addEventListener('click', () => state.current?.kind === 'bus' ? refreshBus(state.current.stop, state.current.service) : refreshTrain(state.current.stations));
+$('#refresh-button').addEventListener('click', () => state.current?.kind === 'bus' ? refreshBus(state.current.stop, state.current.service) : refreshTrain(state.current.station));
 $('#location-button').addEventListener('click', () => {
   if (!navigator.geolocation) { setStatus('Location is not available in this browser.'); return; }
   setStatus('Waiting for your permission…');

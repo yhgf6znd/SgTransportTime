@@ -70,17 +70,16 @@ function stationRows(rows) {
 const TRAIN_CODE_PATTERN = /^[A-Z]{1,5}\d{1,3}$/i;
 const TRAIN_QUERY_PATTERN = /^[A-Z0-9_.:-]{1,30}$/i;
 
-function parseTrainCodeValues(value, pattern) {
-  const values = Array.isArray(value) ? value : String(value ?? '').split(',');
-  const codes = [...new Set(values.map((code) => String(code).trim().toUpperCase()).filter(Boolean))];
-  if (!codes.length || codes.length > 8 || codes.some((code) => !pattern.test(code))) {
-    throw new ProviderError('INVALID_INPUT', 'Use one or more comma-separated train station codes, such as NS9 or NS9,TE2.', 400);
+function parseTrainCodeValue(value, pattern) {
+  const code = String(value ?? '').trim().toUpperCase();
+  if (!code || !pattern.test(code)) {
+    throw new ProviderError('INVALID_INPUT', 'Use one train station code, such as NS9 or TE2.', 400);
   }
-  return codes;
+  return code;
 }
 
-export function parseTrainStationCodes(value) {
-  return parseTrainCodeValues(value, TRAIN_CODE_PATTERN);
+export function parseTrainStationCode(value) {
+  return parseTrainCodeValue(value, TRAIN_CODE_PATTERN);
 }
 
 export function buildTrainSchedule({ stops = [], trips = [], stopTimes = [], calendar = [], calendarDates = [], routes = [] }) {
@@ -206,11 +205,18 @@ function cachedTrainSchedule(stationId, now) {
   };
 }
 
-async function loadTrainSchedules(env, stationIds) {
-  const requestedIds = parseTrainStationCodes(stationIds);
+function relatedStations(stations, station) {
+  const name = station.name.trim().toLowerCase();
+  return stations.filter((item) => item.name.trim().toLowerCase() === name).sort((a, b) => a.id.localeCompare(b.id));
+}
+
+async function loadTrainSchedules(env, stationId) {
+  const requestedId = parseTrainStationCode(stationId);
   const now = Date.now();
-  const previous = requestedIds.map((stationId) => cachedTrainSchedule(stationId, now));
-  if (previous.every(Boolean) && previous.every((item) => item.fresh)) {
+  const cachedRequested = cachedTrainSchedule(requestedId, now);
+  const cachedRelatedStations = cachedRequested ? relatedStations(cachedRequested.schedule.stations, cachedRequested.station) : [];
+  const previous = cachedRelatedStations.map((station) => cachedTrainSchedule(station.id, now));
+  if (previous.length && previous.every(Boolean) && previous.every((item) => item.fresh)) {
     return { items: previous.map(({ schedule, station }) => ({ schedule, station, stale: false })) };
   }
 
@@ -219,8 +225,9 @@ async function loadTrainSchedules(env, stationIds) {
     const files = extractGtfsFiles(bytes, TRAIN_FILES);
     const stops = csvRows(findZipText(files, 'stops.txt'));
     const stations = stationRows(stops);
-    const selectedStations = requestedIds.map((stationId) => stations.find((station) => station.id.toLowerCase() === stationId.toLowerCase()));
-    if (selectedStations.some((station) => !station)) throw new ProviderError('INVALID_INPUT', 'Choose verified train station codes from the current station directory.', 400);
+    const selectedStation = stations.find((station) => station.id.toLowerCase() === requestedId.toLowerCase());
+    if (!selectedStation) throw new ProviderError('INVALID_INPUT', 'Choose a verified train station code from the current station directory.', 400);
+    const selectedStations = relatedStations(stations, selectedStation);
     const stopIds = new Set(selectedStations.flatMap((station) => [station.id, ...station.stopIds]));
     const nextSchedule = buildTrainSchedule({
       stops,
@@ -230,7 +237,7 @@ async function loadTrainSchedules(env, stationIds) {
       calendarDates: csvRows(findZipText(files, 'calendar_dates.txt')),
       routes: csvRows(findZipText(files, 'routes.txt')),
     });
-    if (!nextSchedule.entriesByStopId.size) throw new ProviderError('UPSTREAM_INVALID', 'The LTA train schedule contained no timetable records for these stations.', 502);
+    if (!nextSchedule.entriesByStopId.size) throw new ProviderError('UPSTREAM_INVALID', 'The LTA train schedule contained no timetable records for this interchange.', 502);
     for (const station of selectedStations) {
       scheduleCache.set(station.id, nextSchedule);
       scheduleCacheAt.set(station.id, now);
@@ -238,8 +245,8 @@ async function loadTrainSchedules(env, stationIds) {
     }
     return { items: selectedStations.map((station) => ({ schedule: nextSchedule, station, stale: false })) };
   } catch (error) {
-    if (previous.every(Boolean)) {
-      for (const stationId of requestedIds) scheduleCacheStale.add(stationId);
+    if (previous.length && previous.every(Boolean)) {
+      for (const item of previous) scheduleCacheStale.add(item.station.id);
       return { items: previous.map(({ schedule, station }) => ({ schedule, station, stale: true })) };
     }
     throw error;
@@ -248,21 +255,11 @@ async function loadTrainSchedules(env, stationIds) {
 
 export async function trainStations(env, query = '') {
   const stations = await loadStationDirectory(env);
-  const codes = parseTrainCodeValues(query, TRAIN_QUERY_PATTERN);
-  const results = [];
-  const seen = new Set();
-  for (const code of codes) {
-    const exact = stations.filter((station) => station.id.toLowerCase() === code.toLowerCase()
-      || station.stopIds.some((id) => id.toLowerCase() === code.toLowerCase()));
-    const matches = exact.length ? exact : stations.filter((station) => station.id.toLowerCase().includes(code.toLowerCase())
-      || station.stopIds.some((id) => id.toLowerCase().includes(code.toLowerCase())));
-    for (const station of matches) {
-      if (seen.has(station.id)) continue;
-      seen.add(station.id);
-      results.push(station);
-    }
-  }
-  return results.slice(0, 50);
+  const code = parseTrainCodeValue(query, TRAIN_QUERY_PATTERN);
+  const exact = stations.filter((station) => station.id.toLowerCase() === code.toLowerCase()
+    || station.stopIds.some((id) => id.toLowerCase() === code.toLowerCase()));
+  return (exact.length ? exact : stations.filter((station) => station.id.toLowerCase().includes(code.toLowerCase())
+    || station.stopIds.some((id) => id.toLowerCase().includes(code.toLowerCase())))).slice(0, 50);
 }
 
 function scheduleTripMetadata(schedule) {
@@ -308,8 +305,8 @@ function aggregateTrainStatus(items) {
   return statuses.size === 1 ? items[0].status : 'mixed';
 }
 
-export async function trainArrivals(env, stationIds) {
-  const loaded = await loadTrainSchedules(env, stationIds);
+export async function trainArrivals(env, stationId) {
+  const loaded = await loadTrainSchedules(env, stationId);
   let feed = null;
   try {
     const bytes = await ltaFeedBytes('GTFSRealtimeTrainTripUpdates', env);
