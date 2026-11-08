@@ -1,6 +1,9 @@
 import { fetchWithTimeout, ProviderError, readJson } from './http.js';
 
 export const LTA_BASE = 'https://datamall2.mytransport.sg/ltaodataservice/';
+const BUS_STOP_CACHE_MS = 24 * 60 * 60 * 1000;
+let busStopCache = null;
+let busStopCacheAt = 0;
 
 function requireKey(env) {
   if (!env?.LTA_ACCOUNT_KEY) throw new ProviderError('CONFIGURATION', 'Live LTA data is not configured for this deployment.', 503);
@@ -86,6 +89,15 @@ export function busStopRecord(raw) {
 }
 
 export async function busStops(env) {
+  const now = Date.now();
+  if (busStopCache && now - busStopCacheAt <= BUS_STOP_CACHE_MS) return busStopCache;
   const rows = await pagedLta('BusStops', env);
-  return rows.map(busStopRecord).filter(Boolean);
+  busStopCache = rows.map(busStopRecord).filter(Boolean);
+  busStopCacheAt = now;
+  return busStopCache;
+}
+
+export function clearBusCache() {
+  busStopCache = null;
+  busStopCacheAt = 0;
 }

@@ -9,7 +9,6 @@
 - OneMap authentication: https://www.onemap.gov.sg/apidocs/authentication
 - OneMap Search: https://www.onemap.gov.sg/apidocs/search
 - Cloudflare Workers static assets: https://developers.cloudflare.com/workers/static-assets/binding/
-- Cloudflare Workers static assets: https://developers.cloudflare.com/workers/static-assets/binding/
 - Cloudflare secrets: https://developers.cloudflare.com/workers/configuration/secrets/
 
 ## LTA
@@ -19,9 +18,17 @@ Dynamic datasets list Bus Arrival, Bus Stops, Bus Services, Bus Routes, GTFS Sch
 ### Bus Arrival v3
 
 - Official request: `GET https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival` with `AccountKey` header, required `BusStopCode` and optional `ServiceNo` query parameters.
-- Provider guide version checked: 6.2, 21 Nov 2024. It states a 20-second update frequency and `Services[].NextBus`, `NextBus2`, `NextBus3` objects. The implementation preserves provider timestamps and recognizes load/accessibility fields without inventing missing values.
-- Static catalogue endpoints are `BusStops` (paged with `$skip`), `BusRoutes`, and `BusServices`; pagination is bounded and cached only in isolate memory.
+- Provider guide version checked: 6.11, 30 Oct 2026. It states a 20-second update frequency and `Services[].NextBus`, `NextBus2`, `NextBus3` objects.
+- Documented prediction fields used by the app are `EstimatedArrival`, `Monitored`, `Latitude`, `Longitude`, `VisitNumber`, `Load` (`SEA`, `SDA`, `LSD`), `Feature` (`WAB`), `Type` (`SD`, `DD`, `BD`), `OriginCode`, and `DestinationCode`. Missing or unknown values remain null.
+- The UI labels load, vehicle type, wheelchair accessibility, destination and monitored status; estimated coordinates are offered as an external map link. No ETA is calculated by the app.
 - `LTA_ACCOUNT_KEY` is server-only. Fixture tests cover validation and transformation; live calls are **PENDING**.
+
+### Bus Stops, Services and Routes
+
+- `BusStops` is paged with `$skip` and supplies stop code, description, road name and coordinates. The Worker keeps a bounded isolate-memory catalogue for one day to resolve names and coordinates; the client never receives the AccountKey.
+- `BusServices?ServiceNo=...` supplies service number, operator, direction, category, origin/destination codes, loop description, and AM/PM peak/off-peak dispatch frequencies. These are scheduled metadata, not live arrival predictions.
+- `BusRoutes?ServiceNo=...` supplies ordered stop sequence, stop code, distance, operator/direction, and weekday/Saturday/Sunday first/last bus times. The UI groups by direction and displays the schedule as scheduled data.
+- The official LTA Bus Services page also exposes service-category navigation and a map-oriented experience. This implementation uses the documented DataMall APIs rather than scraping the page. Fare data and a complete public-service category catalogue are not exposed by the verified response fields and are not invented.
 
 ### Train feeds
 

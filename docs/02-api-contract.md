@@ -13,6 +13,7 @@ Errors: `{ "success": false, "error": { "code": "INVALID_INPUT", "message": "...
 | `/api/health` | — | dependency-safe health status, no secrets |
 | `/api/bus/stops` | `search`, `limit` | paginated LTA catalogue search |
 | `/api/bus/arrivals` | `stop` required 5 digits; `service` optional | normalized LTA BusArrival v3, up to three predictions per service |
+| `/api/bus/services` | `search` service number; `limit` optional | scheduled service directory metadata from LTA BusServices |
 | `/api/bus/routes` | `service` | LTA served-stop route data |
 | `/api/train/stations` | `search` | grouped LTA GTFS station/platform directory |
 | `/api/train/arrivals` | `station` | LTA GTFS Trip Updates where feed coverage matches |
@@ -24,10 +25,14 @@ Nearby default success data is `{ "buses": [], "trains": [] }`. With an explicit
 
 Limit query lengths, result count and nearby radius. Bus stop codes are **strings** (leading zeros). Validate latitude [-90,90], longitude [-180,180]. Train station ID must be canonical, not assumed same as public code. Conditional cache policy by data class and source terms; `stale`/`unavailable` must not be represented as `live`.
 
+Bus arrivals include `stopName`/`stopRoad` when the stop catalogue is available. Each prediction preserves documented fields without inventing values: `estimatedArrival`, `estimatedLocation`, `load` (`SEA`, `SDA`, `LSD`), `wheelchairAccessible`, `vehicleType` (`SD`, `DD`, `BD`), `originCode`, `destinationCode`, `monitored`, and `visitNumber`. Destination and origin names are resolved from the server-side stop catalogue when available.
+
+Bus service data is scheduled metadata: `serviceNo`, `operator`, `direction`, `category`, origin/destination codes and names, dispatch `frequencies`, and optional `loopDescription`. Bus route data is `{ service, directions[] }`; each direction has ordered `stops[]` with stop code/name/road, coordinates, distance, and weekday/Saturday/Sunday `firstLast` times.
+
 Suggested bus data view:
 
 ```json
-{"stopCode":"01012","services":[{"serviceNo":"36","arrivals":[{"estimatedArrival":"2026-11-02T18:12:00+08:00","load":"SEA","wheelchairAccessible":true}],"predictionStatus":"live"}]}
+{"stopCode":"01012","services":[{"serviceNo":"36","arrivals":[{"estimatedArrival":"2026-11-02T18:12:00+08:00","load":"SEA","wheelchairAccessible":true,"vehicleType":"DD","destinationCode":"02020"}]}]}
 ```
 
 Train coverage and live provider behavior remain credential-dependent and are not claimed live-verified by fixtures.

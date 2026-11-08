@@ -18,15 +18,20 @@ export function parseEtaMinutes(estimatedArrival, now = Date.now()) {
 
 export function normalizeBusArrival(raw = {}) {
   const estimatedArrival = String(raw.EstimatedArrival ?? '').trim();
+  const latitude = Number(raw.Latitude);
+  const longitude = Number(raw.Longitude);
   return {
     estimatedArrival: estimatedArrival || null,
-    estimatedLocation: raw.EstimatedLocation && Number.isFinite(Number(raw.EstimatedLocation.Latitude))
-      ? { latitude: Number(raw.EstimatedLocation.Latitude), longitude: Number(raw.EstimatedLocation.Longitude) }
+    estimatedLocation: Number.isFinite(latitude) && Number.isFinite(longitude)
+      ? { latitude, longitude }
       : null,
     load: raw.Load === 'SEA' || raw.Load === 'SDA' || raw.Load === 'LSD' ? raw.Load : null,
     wheelchairAccessible: raw.Feature === 'WAB' ? true : raw.Feature ? false : null,
-    type: typeof raw.Type === 'string' && raw.Type.length <= 30 ? raw.Type : null,
-    destinationCode: typeof raw.DestinationCode === 'string' ? raw.DestinationCode : null,
+    vehicleType: typeof raw.Type === 'string' && raw.Type.length <= 30 ? raw.Type : null,
+    originCode: typeof raw.OriginCode === 'string' ? raw.OriginCode.trim() || null : null,
+    destinationCode: typeof raw.DestinationCode === 'string' ? raw.DestinationCode.trim() || null : null,
+    monitored: raw.Monitored === '1' || raw.Monitored === 1 ? true : raw.Monitored === '0' || raw.Monitored === 0 ? false : null,
+    visitNumber: Number.isFinite(Number(raw.VisitNumber)) ? Number(raw.VisitNumber) : null,
   };
 }
 

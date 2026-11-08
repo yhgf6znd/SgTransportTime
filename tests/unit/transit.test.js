@@ -11,7 +11,13 @@ test('keeps leading zero bus stop codes and allows service suffixes', () => {
 
 test('normalizes missing bus fields without inventing values', () => {
   assert.deepEqual(normalizeBusArrival({ EstimatedArrival: '', Load: 'unknown' }), {
-    estimatedArrival: null, estimatedLocation: null, load: null, wheelchairAccessible: null, type: null, destinationCode: null,
+    estimatedArrival: null, estimatedLocation: null, load: null, wheelchairAccessible: null, vehicleType: null, originCode: null, destinationCode: null, monitored: null, visitNumber: null,
+  });
+});
+
+test('normalizes documented bus telemetry without inventing missing values', () => {
+  assert.deepEqual(normalizeBusArrival({ EstimatedArrival: '2026-11-02T01:00:00Z', Latitude: '1.3', Longitude: '103.8', Load: 'SDA', Feature: 'WAB', Type: 'DD', OriginCode: '01012', DestinationCode: '02020', Monitored: '1', VisitNumber: '2' }), {
+    estimatedArrival: '2026-11-02T01:00:00Z', estimatedLocation: { latitude: 1.3, longitude: 103.8 }, load: 'SDA', wheelchairAccessible: true, vehicleType: 'DD', originCode: '01012', destinationCode: '02020', monitored: true, visitNumber: 2,
   });
 });
 

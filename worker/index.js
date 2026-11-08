@@ -1,6 +1,7 @@
 import { errorResponse, ProviderError } from '../functions/_lib/http.js';
 import { onRequestGet as busArrivals } from '../functions/api/bus/arrivals.js';
 import { onRequestGet as busRoutes } from '../functions/api/bus/routes.js';
+import { onRequestGet as busServices } from '../functions/api/bus/services.js';
 import { onRequestGet as busStops } from '../functions/api/bus/stops.js';
 import { onRequestGet as health } from '../functions/api/health.js';
 import { onRequestGet as nearby } from '../functions/api/nearby.js';
@@ -13,6 +14,7 @@ const routes = new Map([
   ['/api/health', health],
   ['/api/bus/arrivals', busArrivals],
   ['/api/bus/routes', busRoutes],
+  ['/api/bus/services', busServices],
   ['/api/bus/stops', busStops],
   ['/api/nearby', nearby],
   ['/api/places/search', placeSearch],
