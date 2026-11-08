@@ -24,7 +24,8 @@ test('loads station hints from stops without parsing timetable files', async () 
     const stations = await trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'NS25');
     assert.equal(stations.length, 1);
     assert.equal(stations[0].id, 'NS25');
-    await assert.rejects(() => trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'City Hall'), /one train station code/);
+    const cityHall = await trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'City Hall');
+    assert.deepEqual(cityHall.map((station) => station.id), ['NS25']);
     const woodlands = await trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'NS9');
     assert.deepEqual(woodlands.map((station) => station.id), ['NS9']);
     const secondLine = await trainStations({ LTA_ACCOUNT_KEY: 'test' }, 'TE2');

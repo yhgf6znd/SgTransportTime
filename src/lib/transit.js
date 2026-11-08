@@ -55,6 +55,16 @@ export function searchRecords(records, query, fields, limit = 20) {
   return records.filter((record) => fields.some((field) => String(record[field] ?? '').toLowerCase().includes(needle))).slice(0, limit);
 }
 
+export function searchMatchRank(fields, query) {
+  const values = fields.map((value) => String(value ?? '').trim().toLowerCase()).filter(Boolean);
+  const needle = String(query ?? '').trim().toLowerCase();
+  if (!needle) return -1;
+  if (values.some((value) => value === needle)) return 0;
+  if (values.some((value) => value.startsWith(needle))) return 1;
+  if (values.some((value) => value.includes(needle))) return 2;
+  return -1;
+}
+
 export function stationMatches(station, query) {
   const needle = String(query ?? '').trim().toLowerCase();
   if (!needle) return true;

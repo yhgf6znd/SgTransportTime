@@ -18,3 +18,6 @@ Service API review checkpoint (2026-11-08): service-wide live fan-out uses uncac
 Implementation checkpoint (2026-11-08): the bus directory, route schedule, arrival telemetry, refresh settings and static cache policy are represented in code, fixtures and docs. Provider calls, browser E2E, `npm run dev`, credential setup, and production deployment remain explicitly unverified until authorized secrets and a Workers project are supplied.
 
 At each milestone log: commit, files changed, commands run, pass/fail, pending credentials, verified provider behavior, release notes. No promise of universal live MRT/LRT arrival coverage.
+- [x] M13: unified ranked search GUI for bus stops, bus services, MRT/LRT stations, postal codes, and place-name nearby lookup
+
+Frontend checkpoint (2026-11-08): one accessible search bar now drives transport and nearby-place lookup with debounced hints, keyboard navigation, and exact/prefix/wildcard result grouping.

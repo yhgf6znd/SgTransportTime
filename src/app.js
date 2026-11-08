@@ -1,8 +1,8 @@
-import { normalizeService, normalizeStopCode, parseEtaMinutes } from './lib/transit.js';
+import { normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank } from './lib/transit.js';
 import { loadState, saveState, toggleFavourite } from './lib/storage.js';
 
 const $ = (selector) => document.querySelector(selector);
-const state = { view: 'bus', saved: loadState(window.localStorage), current: null, timer: null, stations: [], stops: [] };
+const state = { view: 'search', saved: loadState(window.localStorage), current: null, timer: null, searchTimer: null, searchQuery: '', searchRecords: [], stations: [], stops: [] };
 const results = $('#results');
 
 function node(tag, text, className) {
@@ -188,26 +188,98 @@ function renderCurrent() {
   if (state.current?.kind === 'train' && state.current.data) renderTrain(state.current.data, state.current.meta);
 }
 
-async function loadBusStops(query) {
-  const body = await api(`/api/bus/stops?search=${encodeURIComponent(query)}&limit=12`);
-  state.stops = body.data;
-  return state.stops;
-}
+let searchRevision = 0;
+let suggestionButtons = [];
+let activeSuggestion = -1;
 
-async function loadBusServices(query) {
-  const body = await api(`/api/bus/services?search=${encodeURIComponent(query)}&limit=12`);
+async function loadBusStops(query) {
+  const body = await api(`/api/bus/stops?search=${encodeURIComponent(query)}&limit=20`);
   return body.data;
 }
 
-function renderSuggestions(container, records, label, onSelect) {
-  container.replaceChildren(...records.map((record) => {
-    const button = node('button', label(record), 'suggestion');
-    button.type = 'button';
-    button.setAttribute('role', 'option');
-    button.addEventListener('click', () => { onSelect(record); container.replaceChildren(); });
-    return button;
-  }));
+async function loadBusServices(query) {
+  const body = await api(`/api/bus/services?search=${encodeURIComponent(query)}&limit=20`);
+  return body.data;
 }
+
+async function loadTrainStations(query) {
+  const body = await api(`/api/train/stations?search=${encodeURIComponent(query)}`);
+  return body.data;
+}
+
+async function loadPlaces(query) {
+  const body = await api(`/api/places/search?q=${encodeURIComponent(query)}`);
+  return body.data.results;
+}
+
+
+function searchRecord(kind, item, query, label, detail, fields) {
+  const rank = searchMatchRank(fields, query);
+  return rank < 0 ? null : { kind, item, rank, label, detail };
+}
+
+function renderSuggestions(container, records, onSelect) {
+  suggestionButtons = [];
+  activeSuggestion = -1;
+  const groups = [[0, "Exact match"], [1, "Starting with"], [2, "Other matches"]];
+  const elements = [];
+  for (const [rank, title] of groups) {
+    const matches = records.filter((record) => record.rank === rank);
+    if (!matches.length) continue;
+    elements.push(node("div", title, "suggestion-group-label"));
+    for (const record of matches) {
+      const button = node("button", undefined, "suggestion");
+      button.type = "button";
+      button.setAttribute("role", "option");
+      button.setAttribute("aria-selected", "false");
+      button.append(node("strong", record.label), node("span", record.detail, "suggestion-detail"));
+      button.addEventListener("click", () => { onSelect(record); container.replaceChildren(); suggestionButtons = []; });
+      suggestionButtons.push(button);
+      elements.push(button);
+    }
+  }
+  container.replaceChildren(...elements);
+}
+
+function setActiveSuggestion(index) {
+  if (!suggestionButtons.length) return;
+  activeSuggestion = (index + suggestionButtons.length) % suggestionButtons.length;
+  suggestionButtons.forEach((button, buttonIndex) => {
+    const selected = buttonIndex === activeSuggestion;
+    button.setAttribute("aria-selected", String(selected));
+    if (selected) button.scrollIntoView({ block: "nearest" });
+  });
+}
+
+async function collectSearchRecords(query) {
+  const serviceQuery = normalizeStopCode(query) || /^[A-Z]{1,5}\d{1,3}$/i.test(query) ? null : normalizeService(query);
+  const responses = await Promise.allSettled([
+    loadBusStops(query),
+    serviceQuery ? loadBusServices(serviceQuery) : Promise.resolve([]),
+    loadTrainStations(query),
+    query.length >= 3 ? loadPlaces(query) : Promise.resolve([]),
+  ]);
+  const stops = responses[0].status === "fulfilled" ? responses[0].value : [];
+  const services = responses[1].status === "fulfilled" ? responses[1].value : [];
+  const stations = responses[2].status === "fulfilled" ? responses[2].value : [];
+  const places = responses[3].status === "fulfilled" ? responses[3].value : [];
+  return [
+    ...stops.map((item) => searchRecord("bus-stop", item, query, `Bus stop ${item.code} · ${item.name}`, item.road ? `Bus stop · ${item.road}` : "Bus stop", [item.code, item.name, item.road])),
+    ...services.map((item) => searchRecord("bus-service", item, query, `Bus service ${item.serviceNo}`, [item.operator, item.category, item.originName, item.destinationName].filter(Boolean).join(" · ") || "Scheduled service", [item.serviceNo, item.originName, item.destinationName])),
+    ...stations.map((item) => searchRecord("train-station", item, query, item.name, `MRT / LRT · ${(item.codes ?? [item.id]).join(" / ")}`, [item.name, item.id, ...(item.codes ?? []), ...(item.stopIds ?? [])])),
+    ...places.map((item) => searchRecord("place", item, query, `Nearby transport · ${item.label}`, item.address || "Location", [item.label, item.address])),
+  ].filter(Boolean).sort((a, b) => a.rank - b.rank || a.label.localeCompare(b.label));
+}
+
+function updateSearchHint(query) {
+  const hint = $("#search-hint");
+  if (!query) hint.textContent = "Try a station code, service number, bus stop, postal code, or location name.";
+  else if (normalizeStopCode(query)) hint.textContent = "Bus stop code detected. Press Search for live arrivals.";
+  else if (/^[A-Z]{1,5}\d{1,3}$/i.test(query)) hint.textContent = "Station code detected. We will verify it against the train directory.";
+  else if (normalizeService(query)) hint.textContent = "Bus service number detected. Choose a scheduled service.";
+  else hint.textContent = "Searching station names, stop names, roads, and nearby places…";
+}
+
 
 function renderServiceInfo(service) {
   clearResults();
@@ -290,30 +362,58 @@ async function showBusRoute(service) {
   } catch (error) { clearResults(); setStatus(apiError(error)); }
 }
 
-async function searchBus(event) {
+function chooseSearchRecord(record) {
+  const input = $("#global-query");
+  input.value = record.kind === "bus-stop" ? record.item.code : record.kind === "bus-service" ? record.item.serviceNo : record.kind === "train-station" ? record.item.name : record.item.label;
+  $("#search-suggestions").replaceChildren();
+  suggestionButtons = [];
+  if (record.kind === "bus-stop") return refreshBus(record.item.code, "");
+  if (record.kind === "bus-service") return showBusService(record.item);
+  if (record.kind === "train-station") return refreshTrain(record.item);
+  return nearby(record.item.latitude, record.item.longitude);
+}
+
+function parseDirectQuery(query) {
+  const parts = query.split(/\s+/);
+  const stop = parts.map(normalizeStopCode).find(Boolean);
+  const service = parts.map(normalizeService).find((value) => value && !/^[A-Z]{1,5}\d{1,3}$/i.test(value));
+  return stop && service ? { stop, service } : null;
+}
+
+async function searchAll(event) {
   event?.preventDefault();
-  const query = $('#bus-query').value.trim();
-  const serviceInput = $('#bus-service').value.trim();
-  const normalizedService = serviceInput ? normalizeService(serviceInput) : null;
-  if (!query || (serviceInput && !normalizedService)) { setStatus('Enter a stop, bus number, or an optional service number such as 36A.'); return; }
+  const query = $("#global-query").value.trim();
+  if (!query) { $("#search-suggestions").replaceChildren(); setStatus("Enter a station, bus stop, service, postal code, or place name."); return; }
+  const direct = parseDirectQuery(query);
+  if (direct) { $("#search-suggestions").replaceChildren(); await refreshBus(direct.stop, direct.service); return; }
   try {
-    const directStop = normalizeStopCode(query) ? { code: query, name: `Stop ${query}` } : null;
-    if (directStop) { $('#bus-suggestions').replaceChildren(); await refreshBus(directStop.code, normalizedService ?? ''); return; }
-    const serviceQuery = normalizeService(query);
-    const [stopResult, serviceResult] = await Promise.allSettled([loadBusStops(query), serviceQuery ? loadBusServices(serviceQuery) : Promise.resolve([])]);
-    const stops = stopResult.status === 'fulfilled' ? stopResult.value : [];
-    const services = serviceResult.status === 'fulfilled' ? serviceResult.value : [];
-    if (stops.length === 1 && !services.length) { await refreshBus(stops[0].code, normalizedService ?? ''); return; }
-    const suggestions = [...stops.map((item) => ({ type: 'stop', item })), ...services.map((item) => ({ type: 'service', item }))];
-    renderSuggestions($('#bus-suggestions'), suggestions, (entry) => entry.type === 'stop'
-      ? `${entry.item.code} · ${entry.item.name} (${entry.item.road})`
-      : `Service ${entry.item.serviceNo} · ${entry.item.operator ?? 'LTA'}${entry.item.category ? ` · ${entry.item.category}` : ''}`,
-    (entry) => {
-      if (entry.type === 'stop') { $('#bus-query').value = entry.item.code; refreshBus(entry.item.code, normalizedService ?? ''); }
-      else { $('#bus-query').value = entry.item.serviceNo; showBusService(entry.item); }
-    });
-    setStatus(suggestions.length ? 'Choose a bus stop or service from the results.' : 'No matching bus stops or bus services found.');
-  } catch (error) { clearResults(); setStatus(apiError(error)); }
+    const records = state.searchQuery === query && state.searchRecords.length ? state.searchRecords : await collectSearchRecords(query);
+    state.searchQuery = query;
+    state.searchRecords = records;
+    if (records.length === 1 && records[0].rank === 0) { await chooseSearchRecord(records[0]); return; }
+    renderSuggestions($("#search-suggestions"), records, chooseSearchRecord);
+    setStatus(records.length ? "Choose a result. Exact matches are shown first." : "No bus stops, services, stations, or nearby places matched.");
+  } catch (error) { $("#search-suggestions").replaceChildren(); clearResults(); setStatus(apiError(error)); }
+}
+
+function scheduleSearch() {
+  clearTimeout(state.searchTimer);
+  const query = $("#global-query").value.trim();
+  updateSearchHint(query);
+  state.searchQuery = query;
+  state.searchRecords = [];
+  if (!query) { $("#search-suggestions").replaceChildren(); return; }
+  const revision = ++searchRevision;
+  state.searchTimer = setTimeout(async () => {
+    try {
+      const records = await collectSearchRecords(query);
+      if (revision !== searchRevision || $("#global-query").value.trim() !== query) return;
+      state.searchRecords = records;
+      renderSuggestions($("#search-suggestions"), records, chooseSearchRecord);
+    } catch (error) {
+      if (revision === searchRevision) setStatus(apiError(error));
+    }
+  }, 280);
 }
 
 async function refreshBus(stop, service) {
@@ -326,22 +426,6 @@ async function refreshBus(stop, service) {
     renderBus(body.data, body.meta);
     setStatus(`Updated ${new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', timeStyle: 'short' }).format(new Date())} SGT · ${body.meta.source}`);
     scheduleRefresh();
-  } catch (error) { clearResults(); setStatus(apiError(error)); }
-}
-
-async function searchTrain(event) {
-  event?.preventDefault();
-  const query = $('#train-query').value.trim();
-  if (!query) { setStatus('Enter one station code, such as NS9 or TE2.'); return; }
-  try {
-    const body = await api(`/api/train/stations?code=${encodeURIComponent(query)}`);
-    state.stations = body.data;
-    if (state.stations.length !== 1) {
-      renderSuggestions($('#train-suggestions'), state.stations, (item) => `${item.id} · ${item.name}`, (item) => { $('#train-query').value = item.id; searchTrain(); });
-      setStatus(state.stations.length ? 'Choose a verified station code from the results.' : 'No verified station code matched that query.');
-      return;
-    }
-    await refreshTrain(state.stations[0]);
   } catch (error) { clearResults(); setStatus(apiError(error)); }
 }
 
@@ -387,8 +471,10 @@ async function nearby(latitude, longitude) {
 }
 
 function openFavourite(favourite) {
-  if (favourite.kind === 'bus') { switchView('bus'); $('#bus-query').value = favourite.code; $('#bus-service').value = favourite.service; refreshBus(favourite.code, favourite.service); }
-  else { switchView('train'); $('#train-query').value = favourite.code; refreshTrain({ id: favourite.code, name: favourite.name, stopIds: [] }); }
+  switchView('search');
+  $('#global-query').value = favourite.kind === 'bus' ? favourite.code : favourite.name || favourite.code;
+  if (favourite.kind === 'bus') refreshBus(favourite.code, favourite.service);
+  else refreshTrain({ id: favourite.code, name: favourite.name, stopIds: [] });
 }
 
 function scheduleRefresh() {
@@ -409,26 +495,24 @@ function switchView(view) {
   $('#refresh-button').hidden = true;
   clearResults();
   if (view === 'saved') renderSaved();
-  else if (view === 'train') loadAlerts();
+  else loadAlerts();
   setStatus(view === 'saved' ? 'Saved journeys' : 'Choose a search to get started.');
 }
 
 document.querySelectorAll('.tab').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.view)));
-$('#bus-form').addEventListener('submit', searchBus);
-$('#train-form').addEventListener('submit', searchTrain);
+$('#search-form').addEventListener('submit', searchAll);
+$('#global-query').addEventListener('input', scheduleSearch);
+$('#global-query').addEventListener('keydown', (event) => {
+  if (event.key === 'ArrowDown') { event.preventDefault(); setActiveSuggestion(activeSuggestion + 1); }
+  if (event.key === 'ArrowUp') { event.preventDefault(); setActiveSuggestion(activeSuggestion - 1); }
+  if (event.key === 'Escape') { $('#search-suggestions').replaceChildren(); suggestionButtons = []; activeSuggestion = -1; }
+  if (event.key === 'Enter' && activeSuggestion >= 0 && suggestionButtons[activeSuggestion]) { event.preventDefault(); suggestionButtons[activeSuggestion].click(); }
+});
 $('#refresh-button').addEventListener('click', () => state.current?.kind === 'bus' ? refreshBus(state.current.stop, state.current.service) : refreshTrain(state.current.station));
 $('#location-button').addEventListener('click', () => {
   if (!navigator.geolocation) { setStatus('Location is not available in this browser.'); return; }
   setStatus('Waiting for your permission…');
   navigator.geolocation.getCurrentPosition(({ coords }) => nearby(coords.latitude, coords.longitude), () => setStatus('Location permission was denied or unavailable. Nothing was saved.'), { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
-});
-$('#place-form').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  try {
-    const body = await api(`/api/places/search?q=${encodeURIComponent($('#place-query').value.trim())}`);
-    renderSuggestions($('#place-suggestions'), body.data.results, (item) => `${item.label} · ${item.address}`, (item) => nearby(item.latitude, item.longitude));
-    setStatus(body.data.results.length ? 'Choose a place to find nearby transport.' : 'No places found.');
-  } catch (error) { setStatus(apiError(error)); }
 });
 $('#settings-button').addEventListener('click', () => { $('#theme-select').value = state.saved.theme; $('#polling-select').value = String(state.saved.pollingSeconds); $('#settings-dialog').showModal(); });
 $('#settings-form').addEventListener('submit', (event) => {
@@ -443,4 +527,5 @@ $('#settings-form').addEventListener('submit', (event) => {
 function applyTheme() { document.documentElement.dataset.theme = state.saved.theme === 'system' ? '' : state.saved.theme; }
 document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(state.timer); else if (state.current) scheduleRefresh(); });
 applyTheme();
+loadAlerts();
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

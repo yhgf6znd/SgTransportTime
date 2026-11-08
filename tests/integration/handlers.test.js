@@ -29,7 +29,7 @@ test('train endpoints enforce canonical station-code queries', async () => {
     const interchangeBody = await interchangeResponse.json();
     assert.equal(interchangeResponse.status, 400);
     assert.equal(interchangeBody.error.code, 'INVALID_INPUT');
-    const stationsResponse = await trainStations({ request: new Request('https://example.test/api/train/stations?search=NS9'), env: { LTA_ACCOUNT_KEY: 'test' } });
+    const stationsResponse = await trainStations({ request: new Request('https://example.test/api/train/stations?search=NS9,TE2'), env: { LTA_ACCOUNT_KEY: 'test' } });
     const stationsBody = await stationsResponse.json();
     assert.equal(stationsResponse.status, 400);
     assert.equal(stationsBody.error.code, 'INVALID_INPUT');

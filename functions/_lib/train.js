@@ -275,15 +275,16 @@ async function loadTrainSchedules(env, stationId) {
   }
 }
 
-export async function trainStations(env, query = '') {
+export async function trainStations(env, query = "") {
+  const needle = String(query ?? "").trim().toLowerCase();
+  if (!needle || needle.length > 80 || /[\u0000-\u001f]/.test(needle) || !/^[a-z0-9 .&'()/:-]+$/i.test(needle)) throw new ProviderError("INVALID_INPUT", "Enter a station code or station name.", 400);
   const stations = await loadStationDirectory(env);
-  const code = parseTrainCodeValue(query, TRAIN_QUERY_PATTERN);
-  const exact = stations.filter((station) => station.id.toLowerCase() === code.toLowerCase()
-    || station.codes.some((stationCode) => stationCode.toLowerCase() === code.toLowerCase())
-    || station.stopIds.some((id) => id.toLowerCase() === code.toLowerCase()));
-  return (exact.length ? exact : stations.filter((station) => station.id.toLowerCase().includes(code.toLowerCase())
-    || station.codes.some((stationCode) => stationCode.toLowerCase().includes(code.toLowerCase()))
-    || station.stopIds.some((id) => id.toLowerCase().includes(code.toLowerCase())))).slice(0, 50);
+  const ranked = stations.map((station, index) => {
+    const fields = [station.id, station.name, ...(station.codes ?? []), ...(station.stopIds ?? [])].map((value) => String(value).toLowerCase());
+    const rank = fields.some((value) => value === needle) ? 0 : fields.some((value) => value.startsWith(needle)) ? 1 : fields.some((value) => value.includes(needle)) ? 2 : -1;
+    return { station, rank, index };
+  }).filter((item) => item.rank >= 0);
+  return ranked.sort((a, b) => a.rank - b.rank || a.station.name.localeCompare(b.station.name) || a.index - b.index).map((item) => item.station).slice(0, 50);
 }
 
 function scheduleTripMetadata(schedule) {
