@@ -116,18 +116,43 @@ function renderTrain(data, meta) {
   title.append(node('h2', data.station.name, 'card-title'), node('p', `Verified station ID ${data.station.id}`, 'card-sub'));
   head.append(title, saveButton({ kind: 'train', code: data.station.id, service: '', name: data.station.name }));
   card.append(head, chip(meta.status));
-  if (!data.arrivals.length) card.append(node('p', 'No planned or realtime train arrivals are available for this station right now.', 'empty'));
-  else {
-    const grid = node('div', undefined, 'eta-grid');
-    for (const arrival of data.arrivals.slice(0, 6)) {
-      const eta = node('div', undefined, 'eta');
-      const label = arrival.predictionStatus === 'scheduled' ? 'Planned schedule' : (arrival.route ? `Line ${arrival.route}` : 'Realtime feed');
-      eta.append(node('strong', minutesLabel(arrival)), node('span', label));
-      grid.append(eta);
-    }
-    card.append(grid);
+  if (!data.arrivals.length) {
+    card.append(node('p', 'No planned or realtime train arrivals are available for this station right now.', 'empty'));
+    results.append(card);
+    return;
   }
   results.append(card);
+
+  const groups = new Map();
+  for (const arrival of data.arrivals) {
+    const key = [arrival.route ?? '', arrival.directionId ?? '', arrival.destination ?? ''].join('|') || 'unknown';
+    const group = groups.get(key) ?? [];
+    group.push(arrival);
+    groups.set(key, group);
+  }
+
+  for (const arrivals of groups.values()) {
+    const direction = node('article', undefined, 'card');
+    const destination = arrivals.find((arrival) => arrival.destination)?.destination;
+    const directionId = arrivals.find((arrival) => arrival.directionId)?.directionId;
+    const routes = [...new Set(arrivals.map((arrival) => arrival.route).filter(Boolean))];
+    const label = destination ? `To ${destination}` : directionId ? `Direction ${directionId}` : routes.length ? `Line ${routes.join(' / ')}` : 'Direction not provided';
+    const subtitle = destination && routes.length ? `Line ${routes.join(' / ')}` : directionId && routes.length ? `Line ${routes.join(' / ')}` : 'The feed did not provide a destination for these arrivals.';
+    const directionHead = node('div', undefined, 'card-head');
+    const directionTitle = node('div');
+    directionTitle.append(node('h3', label, 'card-title'), node('p', subtitle, 'card-sub'));
+    directionHead.append(directionTitle);
+    direction.append(directionHead);
+    const grid = node('div', undefined, 'eta-grid');
+    for (const arrival of arrivals.slice(0, 6)) {
+      const eta = node('div', undefined, 'eta');
+      const arrivalLabel = arrival.predictionStatus === 'scheduled' ? 'Planned schedule' : 'Realtime feed';
+      eta.append(node('strong', minutesLabel(arrival)), node('span', arrivalLabel));
+      grid.append(eta);
+    }
+    direction.append(grid);
+    results.append(direction);
+  }
 }
 
 function renderSaved() {
@@ -299,7 +324,7 @@ async function searchTrain(event) {
     const body = await api(`/api/train/stations?search=${encodeURIComponent(query)}`);
     state.stations = body.data;
     if (state.stations.length !== 1) {
-      renderSuggestions($('#train-suggestions'), state.stations, (item) => `${item.name} · ${item.id}`, (item) => { $('#train-query').value = item.name; searchTrain(); });
+      renderSuggestions($('#train-suggestions'), state.stations, (item) => `${item.name} · ${item.id}`, (item) => { $('#train-query').value = item.id; searchTrain(); });
       setStatus(state.stations.length ? 'Choose a station from the results.' : 'No verified station matched that search.');
       return;
     }

@@ -74,7 +74,11 @@ function decodeTrip(bytes) {
     const tag = Number(readVarint(bytes, state));
     const field = tag >> 3;
     const wire = tag & 7;
-    if (wire === 0) { readVarint(bytes, state); continue; }
+    if (wire === 0) {
+      const value = Number(readVarint(bytes, state));
+      if (field === 7) trip.directionId = String(value).slice(0, 30);
+      continue;
+    }
     const length = Number(readVarint(bytes, state));
     const chunk = bytes.subarray(state.offset, state.offset + length);
     state.offset += length;

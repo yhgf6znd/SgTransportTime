@@ -10,8 +10,8 @@ test('builds planned station arrivals from GTFS calendar and stop_times data', (
     ],
     routes: [{ route_id: 'NSL', route_short_name: 'NSL' }],
     trips: [
-      { trip_id: 'trip-0830', service_id: 'weekday', route_id: 'NSL' },
-      { trip_id: 'trip-0900', service_id: 'weekday', route_id: 'NSL' },
+      { trip_id: 'trip-0830', service_id: 'weekday', route_id: 'NSL', direction_id: '0', trip_headsign: 'Jurong East' },
+      { trip_id: 'trip-0900', service_id: 'weekday', route_id: 'NSL', direction_id: '1', trip_headsign: 'Marina South Pier' },
     ],
     stopTimes: [
       { trip_id: 'trip-0830', stop_id: 'NS25-1', arrival_time: '08:30:00', stop_sequence: '1' },
@@ -21,9 +21,9 @@ test('builds planned station arrivals from GTFS calendar and stop_times data', (
   });
   const arrivals = scheduledTrainArrivals(schedule, schedule.stations[0], Date.parse('2026-11-08T00:00:00Z'));
   assert.equal(schedule.stations[0].name, 'City Hall');
-  assert.deepEqual(arrivals.map((item) => [item.route, item.predictionStatus, item.trip]), [
-    ['NSL', 'scheduled', 'trip-0830'],
-    ['NSL', 'scheduled', 'trip-0900'],
+  assert.deepEqual(arrivals.map((item) => [item.route, item.directionId, item.destination, item.predictionStatus, item.trip]), [
+    ['NSL', '0', 'Jurong East', 'scheduled', 'trip-0830'],
+    ['NSL', '1', 'Marina South Pier', 'scheduled', 'trip-0900'],
   ]);
 });
 

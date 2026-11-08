@@ -35,4 +35,4 @@ Suggested bus data view:
 {"stopCode":"01012","services":[{"serviceNo":"36","arrivals":[{"estimatedArrival":"2026-11-02T18:12:00+08:00","load":"SEA","wheelchairAccessible":true,"vehicleType":"DD","destinationCode":"02020"}]}]}
 ```
 
-Train coverage and live provider behavior remain credential-dependent and are not claimed live-verified by fixtures.
+Train arrivals include `estimatedArrival`, `route`, `trip`, `directionId`, `destination`, `delaySeconds`, and `predictionStatus`. `directionId` and `destination` come from the GTFS trip metadata when supplied; the UI groups arrivals by route/direction/destination so opposing and interchange directions are displayed separately. Missing provider direction metadata is shown as `Direction not provided`, never inferred. Train coverage and live provider behavior remain credential-dependent and are not claimed live-verified by fixtures.

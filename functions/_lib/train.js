@@ -75,7 +75,15 @@ export function buildTrainSchedule({ stops = [], trips = [], stopTimes = [], cal
     const serviceId = String(row.service_id ?? '').trim();
     if (!tripId || !serviceId) continue;
     const routeId = String(row.route_id ?? '').trim();
-    tripRecords.set(tripId, { tripId, serviceId, route: routeNames.get(routeId) || routeId || null });
+    const directionId = String(row.direction_id ?? '').trim().slice(0, 30) || null;
+    const destination = String(row.trip_headsign ?? row.destination ?? '').trim().slice(0, 120) || null;
+    tripRecords.set(tripId, {
+      tripId,
+      serviceId,
+      route: routeNames.get(routeId) || routeId || null,
+      directionId,
+      destination,
+    });
   }
 
   const entriesByStopId = new Map();
@@ -132,6 +140,8 @@ export function scheduledTrainArrivals(schedule, station, nowMs = Date.now(), ho
         results.push({
           estimatedArrival: new Date(arrivalMs).toISOString(),
           route: entry.route,
+          directionId: entry.directionId,
+          destination: entry.destination,
           trip: entry.tripId || null,
           delaySeconds: null,
           predictionStatus: 'scheduled',
@@ -203,13 +213,29 @@ async function loadTrainSchedule(env, stationId) {
 export async function trainStations(env, query = '') {
   const stations = await loadStationDirectory(env);
   const needle = String(query).trim().toLowerCase();
-  return stations.filter((station) => !needle || station.id.toLowerCase().includes(needle)
+  const matches = stations.filter((station) => !needle || station.id.toLowerCase().includes(needle)
     || station.name.toLowerCase().includes(needle)
-    || station.stopIds.some((id) => id.toLowerCase().includes(needle))).slice(0, 50);
+    || station.stopIds.some((id) => id.toLowerCase().includes(needle)));
+  if (!needle) return matches.slice(0, 50);
+  const exact = matches.filter((station) => station.id.toLowerCase() === needle
+    || station.name.toLowerCase() === needle
+    || station.stopIds.some((id) => id.toLowerCase() === needle));
+  return (exact.length ? exact : matches).slice(0, 50);
 }
 
-function realtimeTrainArrivals(feed, station, now) {
+function scheduleTripMetadata(schedule) {
+  const metadata = new Map();
+  for (const entries of schedule.entriesByStopId.values()) {
+    for (const entry of entries) {
+      if (entry.tripId && !metadata.has(entry.tripId)) metadata.set(entry.tripId, entry);
+    }
+  }
+  return metadata;
+}
+
+function realtimeTrainArrivals(feed, station, now, schedule) {
   const allowed = new Set([station.id, ...station.stopIds]);
+  const metadata = scheduleTripMetadata(schedule);
   const arrivals = [];
   for (const entity of feed.entities) {
     const update = entity.tripUpdate;
@@ -219,10 +245,14 @@ function realtimeTrainArrivals(feed, station, now) {
       const event = stop.arrival ?? stop.departure;
       const time = Number(event?.time ?? 0);
       if (!time || time < now - 120) continue;
+      const tripId = String(update.trip?.tripId ?? '').slice(0, 80);
+      const trip = metadata.get(tripId);
       arrivals.push({
         estimatedArrival: new Date(time * 1000).toISOString(),
-        route: String(update.trip?.routeId ?? '').slice(0, 30) || null,
-        trip: String(update.trip?.tripId ?? '').slice(0, 80) || entity.id || null,
+        route: String(update.trip?.routeId ?? '').slice(0, 30) || trip?.route || null,
+        directionId: String(update.trip?.directionId ?? '').slice(0, 30) || trip?.directionId || null,
+        destination: trip?.destination ?? null,
+        trip: tripId || entity.id || null,
         delaySeconds: Number(event?.delay ?? 0),
         predictionStatus: 'live',
       });
@@ -241,7 +271,7 @@ export async function trainArrivals(env, stationId) {
   try {
     const bytes = await ltaFeedBytes('GTFSRealtimeTrainTripUpdates', env);
     const feed = decodeGtfsRealtime(bytes);
-    const liveArrivals = realtimeTrainArrivals(feed, station, Math.floor(Date.now() / 1000));
+    const liveArrivals = realtimeTrainArrivals(feed, station, Math.floor(Date.now() / 1000), schedule);
     if (liveArrivals.length) return { station, arrivals: liveArrivals, status: 'live' };
   } catch {
     // The published schedule remains the honest fallback when realtime data is unavailable.
