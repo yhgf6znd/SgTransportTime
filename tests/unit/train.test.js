@@ -26,3 +26,17 @@ test('builds planned station arrivals from GTFS calendar and stop_times data', (
     ['NSL', 'scheduled', 'trip-0900'],
   ]);
 });
+
+test('keeps planned fallback available beyond a short quiet period', () => {
+  const schedule = buildTrainSchedule({
+    stops: [{ stop_id: 'NS25', stop_name: 'City Hall', location_type: '1' }, { stop_id: 'NS25-1', stop_name: 'City Hall Platform 1', parent_station: 'NS25' }],
+    routes: [{ route_id: 'NSL', route_short_name: 'NSL' }],
+    trips: [{ trip_id: 'trip-later', service_id: 'daily', route_id: 'NSL' }],
+    stopTimes: [{ trip_id: 'trip-later', stop_id: 'NS25-1', arrival_time: '23:30:00', stop_sequence: '1' }],
+    calendar: [{ service_id: 'daily', sunday: '1', monday: '1', tuesday: '1', wednesday: '1', thursday: '1', friday: '1', saturday: '1', start_date: '20260101', end_date: '20261231' }],
+  });
+  const arrivals = scheduledTrainArrivals(schedule, schedule.stations[0], Date.parse('2026-11-08T10:00:00Z'));
+  assert.equal(arrivals.length, 1);
+  assert.equal(arrivals[0].predictionStatus, 'scheduled');
+  assert.equal(arrivals[0].trip, 'trip-later');
+});

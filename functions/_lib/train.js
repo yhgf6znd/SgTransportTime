@@ -104,18 +104,21 @@ function activeServiceIds(schedule, serviceDate) {
   return active;
 }
 
-export function scheduledTrainArrivals(schedule, station, nowMs = Date.now()) {
+export function scheduledTrainArrivals(schedule, station, nowMs = Date.now(), horizonMs = 24 * 60 * 60 * 1000) {
   const stopIds = new Set([station.id, ...station.stopIds]);
   const results = [];
   const today = dateKey(nowMs);
-  for (const serviceDate of [shiftDateKey(today, -1), today]) {
+  // Include the previous date for after-midnight trips and scan forward so a
+  // quiet period does not incorrectly become an unavailable result.
+  for (let dayOffset = -1; dayOffset <= 7; dayOffset += 1) {
+    const serviceDate = shiftDateKey(today, dayOffset);
     const active = activeServiceIds(schedule, serviceDate);
     const midnight = localMidnightEpoch(serviceDate);
     for (const stopId of stopIds) {
       for (const entry of schedule.entriesByStopId.get(stopId) ?? []) {
         if (!active.has(entry.serviceId)) continue;
         const arrivalMs = midnight + entry.seconds * 1000;
-        if (arrivalMs < nowMs - 30_000 || arrivalMs > nowMs + 2 * 60 * 60 * 1000) continue;
+        if (arrivalMs < nowMs - 30_000 || arrivalMs > nowMs + horizonMs) continue;
         results.push({
           estimatedArrival: new Date(arrivalMs).toISOString(),
           route: entry.route,
