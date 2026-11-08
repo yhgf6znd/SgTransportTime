@@ -103,14 +103,18 @@ function renderBus(data, meta) {
     const title = node('div');
     title.append(node('div', service.serviceNo, 'card-title'), node('p', `${service.operator ?? 'Bus'} · LTA DataMall`, 'card-sub'));
     head.append(title, saveButton({ kind: 'bus', code: data.stopCode, service: service.serviceNo, name: `Stop ${data.stopCode}` }));
-    const grid = node('div', undefined, 'eta-grid');
-    for (const arrival of service.arrivals.slice(0, 3)) {
-      const minutes = parseEtaMinutes(arrival.estimatedArrival);
-      const eta = node('div', undefined, `eta${minutes !== null && minutes <= 2 ? ' soon' : ''}`);
-      eta.append(node('strong', minutesLabel(arrival)), renderArrivalMeta(arrival));
-      grid.append(eta);
+    if (!service.arrivals.length) {
+      card.append(head, node('p', 'No live arrival data is available for this service right now. This is not a prediction of zero wait time.', 'empty'));
+    } else {
+      const grid = node('div', undefined, 'eta-grid');
+      for (const arrival of service.arrivals.slice(0, 3)) {
+        const minutes = parseEtaMinutes(arrival.estimatedArrival);
+        const eta = node('div', undefined, 'eta' + (minutes !== null && minutes <= 2 ? ' soon' : ''));
+        eta.append(node('strong', minutesLabel(arrival)), renderArrivalMeta(arrival));
+        grid.append(eta);
+      }
+      card.append(head, grid);
     }
-    card.append(head, grid);
     results.append(card);
   }
 }

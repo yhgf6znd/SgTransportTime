@@ -30,3 +30,7 @@ Frontend checkpoint (2026-11-09): nearby location searches use the persisted 500
 - [x] M16: keep search suggestion text left-aligned with an inline right-side favourite star
 
 Frontend checkpoint (2026-11-09): search suggestion favourite controls stay on the same horizontal row as each result.
+
+- [x] M17: retain statically served bus services when a bus-stop live ETA response has no data
+
+Frontend checkpoint (2026-11-09): bus-stop responses merge cached route coverage with live arrivals and label empty services unavailable.

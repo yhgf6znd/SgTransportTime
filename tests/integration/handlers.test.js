@@ -53,3 +53,30 @@ test('bus arrivals transforms the three LTA prediction slots', async () => {
     assert.equal(response.status, 200); assert.equal(body.data.services[0].serviceNo, '36A'); assert.equal(body.data.services[0].arrivals[0].wheelchairAccessible, true);
   } finally { globalThis.fetch = originalFetch; clearBusCache(); }
 });
+
+
+test("bus stop keeps route services without live ETA data", async () => {
+  const originalFetch = globalThis.fetch;
+  clearBusCache();
+  globalThis.fetch = async (request) => {
+    const url = String(request.url ?? request);
+    if (url.includes("BusStops")) return new Response(JSON.stringify({ value: [{ BusStopCode: "01012", Description: "Origin", RoadName: "Example Road", Latitude: "1.3", Longitude: "103.8" }] }), { status: 200 });
+    if (url.includes("BusRoutes")) return new Response(JSON.stringify({ value: [
+      { ServiceNo: "36", Operator: "SBST", BusStopCode: "01012" },
+      { ServiceNo: "67", Operator: "SMRT", BusStopCode: "01012" },
+    ] }), { status: 200 });
+    return new Response(JSON.stringify({ Services: [{ ServiceNo: "36", Operator: "SBST", NextBus: { EstimatedArrival: "2026-11-09T12:00:00+08:00" } }] }), { status: 200 });
+  };
+  try {
+    const response = await busArrivals({ request: new Request("https://example.test/api/bus/arrivals?stop=01012"), env: { LTA_ACCOUNT_KEY: "test" } });
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.deepEqual(body.data.services.map((item) => item.serviceNo), ["36", "67"]);
+    assert.equal(body.data.services[0].status, "live");
+    assert.equal(body.data.services[1].status, "unavailable");
+    assert.deepEqual(body.data.services[1].arrivals, []);
+  } finally {
+    globalThis.fetch = originalFetch;
+    clearBusCache();
+  }
+});

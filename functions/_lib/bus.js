@@ -1,5 +1,5 @@
 import { normalizeBusArrival, normalizeService } from '../../src/lib/transit.js';
-import { ltaJson, busStops } from './lta.js';
+import { ltaJson, busRoutes, busStops } from './lta.js';
 
 function stopLocation(stop) {
   return stop && Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude)
@@ -84,6 +84,16 @@ export async function fetchBusArrivalsAtStop(stopCode, service, env, names = new
     stopLocation: stopLocation(stop),
     services: records,
   };
+}
+
+export async function busServicesAtStop(stopCode, env) {
+  const rows = await busRoutes(env);
+  const services = new Map();
+  for (const row of rows) {
+    if (row.busStopCode !== stopCode || services.has(row.serviceNo)) continue;
+    services.set(row.serviceNo, { serviceNo: row.serviceNo, operator: row.operator });
+  }
+  return [...services.values()].sort((a, b) => a.serviceNo.localeCompare(b.serviceNo, undefined, { numeric: true }));
 }
 
 export async function mapWithConcurrency(items, limit, mapper) {
