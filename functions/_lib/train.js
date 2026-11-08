@@ -2,10 +2,11 @@ import { strFromU8, unzipSync } from 'fflate';
 import { decodeGtfsRealtime, csvRows } from './gtfs.js';
 import { ltaFeedBytes, ltaJson } from './lta.js';
 import { ProviderError } from './http.js';
+import { STATIC_CACHE_SECONDS } from './cache.js';
 
 const SINGAPORE_OFFSET_MS = 8 * 60 * 60 * 1000;
 const SERVICE_DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-const SCHEDULE_CACHE_MS = 6 * 60 * 60 * 1000;
+const SCHEDULE_CACHE_MS = STATIC_CACHE_SECONDS * 1000;
 let scheduleCache = null;
 let scheduleCacheAt = 0;
 
@@ -141,7 +142,7 @@ export function scheduledTrainArrivals(schedule, station, nowMs = Date.now(), ho
 async function loadTrainSchedule(env) {
   const now = Date.now();
   if (!scheduleCache || now - scheduleCacheAt > SCHEDULE_CACHE_MS) {
-    const bytes = await ltaFeedBytes('GTFSScheduleTrain', env);
+    const bytes = await ltaFeedBytes('GTFSScheduleTrain', env, 12000, STATIC_CACHE_SECONDS);
     scheduleCache = buildTrainSchedule({
       stops: csvRows(findZipText(bytes, 'stops.txt')),
       trips: csvRows(findZipText(bytes, 'trips.txt')),

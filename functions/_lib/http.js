@@ -12,8 +12,10 @@ const baseHeaders = {
   'X-Content-Type-Options': 'nosniff',
 };
 
-export function json(data, meta = {}, status = 200) {
-  return new Response(JSON.stringify({ success: true, data, meta }), { status, headers: baseHeaders });
+export function json(data, meta = {}, status = 200, cacheSeconds = 0) {
+  const headers = new Headers(baseHeaders);
+  if (cacheSeconds > 0) headers.set('Cache-Control', `public, max-age=0, s-maxage=${cacheSeconds}`);
+  return new Response(JSON.stringify({ success: true, data, meta }), { status, headers });
 }
 
 export function errorResponse(error) {

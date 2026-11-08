@@ -24,6 +24,7 @@ test('bus services normalizes scheduled service metadata and stop names', async 
     const response = await busServices({ request: new Request('https://example.test/api/bus/services?search=36'), env: { LTA_ACCOUNT_KEY: 'test' } });
     const body = await response.json();
     assert.equal(response.status, 200);
+    assert.equal(response.headers.get('Cache-Control'), 'public, max-age=0, s-maxage=14400');
     assert.deepEqual(body.data[0], { serviceNo: '36', operator: 'SBST', direction: '1', category: 'TRUNK', originCode: '01012', originName: 'Origin', destinationCode: '02020', destinationName: null, frequencies: { amPeak: '10-12', amOffPeak: '12-15', pmPeak: null, pmOffPeak: null }, loopDescription: null });
   } finally { globalThis.fetch = originalFetch; clearBusCache(); }
 });
@@ -38,6 +39,6 @@ test('bus routes groups ordered stops and exposes scheduled first/last times', a
   try {
     const response = await busRoutes({ request: new Request('https://example.test/api/bus/routes?service=36'), env: { LTA_ACCOUNT_KEY: 'test' } });
     const body = await response.json();
-    assert.equal(response.status, 200); assert.equal(body.data.directions.length, 1); assert.equal(body.data.directions[0].stops[0].stopName, 'Origin'); assert.equal(body.data.directions[0].stops[1].stopSequence, 2); assert.equal(body.data.directions[0].stops[0].firstLast.weekday.first, '0530');
+    assert.equal(response.status, 200); assert.equal(response.headers.get('Cache-Control'), 'public, max-age=0, s-maxage=14400'); assert.equal(body.data.directions.length, 1); assert.equal(body.data.directions[0].stops[0].stopName, 'Origin'); assert.equal(body.data.directions[0].stops[1].stopSequence, 2); assert.equal(body.data.directions[0].stops[0].firstLast.weekday.first, '0530');
   } finally { globalThis.fetch = originalFetch; clearBusCache(); }
 });
