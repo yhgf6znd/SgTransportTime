@@ -1,4 +1,4 @@
-import { formatEtaClock, formatEtaLabel, normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank, sortSearchRecords } from './lib/transit.js';
+import { formatEtaClock, formatEtaLabel, groupTrainArrivals, normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank, sortSearchRecords } from './lib/transit.js';
 import { loadState, saveState, toggleFavourite } from './lib/storage.js';
 
 const $ = (selector) => document.querySelector(selector);
@@ -122,31 +122,27 @@ function renderBus(data, meta) {
 }
 
 function trainDirectionCards(container, arrivals) {
-  const groups = new Map();
-  for (const arrival of arrivals) {
-    const key = [arrival.route ?? '', arrival.directionId ?? '', arrival.destination ?? ''].join('|') || 'unknown';
-    const group = groups.get(key) ?? [];
-    group.push(arrival);
-    groups.set(key, group);
-  }
-
-  for (const groupArrivals of groups.values()) {
-    const direction = node('div', undefined, 'card train-direction');
-    const destination = groupArrivals.find((arrival) => arrival.destination)?.destination;
+  for (const groupArrivals of groupTrainArrivals(arrivals)) {
+    const direction = node("div", undefined, "card train-direction");
     const directionId = groupArrivals.find((arrival) => arrival.directionId)?.directionId;
     const routes = [...new Set(groupArrivals.map((arrival) => arrival.route).filter(Boolean))];
-    const label = destination ? `To ${destination}` : directionId ? `Direction ${directionId}` : routes.length ? `Line ${routes.join(' / ')}` : 'Direction not provided';
-    const subtitle = routes.length ? `Line ${routes.join(' / ')}` : 'The feed did not provide a destination for these arrivals.';
-    const directionHead = node('div', undefined, 'card-head');
-    const directionTitle = node('div');
-    directionTitle.append(node('h3', label, 'card-title'), node('p', subtitle, 'card-sub'));
+    const destinations = [...new Set(groupArrivals.map((arrival) => arrival.destination).filter(Boolean))];
+    const lineLabel = routes.length ? "Line " + routes.join(" / ") : null;
+    const label = [lineLabel, directionId ? "Direction " + directionId : null].filter(Boolean).join(" · ") || "Direction not provided";
+    const subtitle = destinations.length > 1 ? "Multiple destinations shown beside each arrival." : destinations.length ? "Destination shown beside each arrival." : "The feed did not provide a destination for these arrivals.";
+    const directionHead = node("div", undefined, "card-head");
+    const directionTitle = node("div");
+    directionTitle.append(node("h3", label, "card-title"), node("p", subtitle, "card-sub"));
     directionHead.append(directionTitle);
     direction.append(directionHead);
-    const grid = node('div', undefined, 'eta-grid');
+    const grid = node("div", undefined, "eta-grid");
     for (const arrival of groupArrivals.slice(0, 6)) {
-      const eta = node('div', undefined, 'eta');
-      const arrivalLabel = arrival.predictionStatus === 'scheduled' ? 'Planned schedule' : 'Realtime feed';
-      eta.append(node('strong', minutesLabel(arrival)), node('span', arrivalLabel));
+      const eta = node("div", undefined, "eta");
+      const arrivalLabel = arrival.predictionStatus === "scheduled" ? "Planned schedule" : "Realtime feed";
+      const primary = node("div", undefined, "eta-primary");
+      primary.append(node("strong", minutesLabel(arrival)));
+      if (arrival.destination) primary.append(node("span", "To " + arrival.destination, "eta-destination"));
+      eta.append(primary, node("span", arrivalLabel));
       grid.append(eta);
     }
     direction.append(grid);

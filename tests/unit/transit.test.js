@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatEtaClock, formatEtaLabel, haversineKm, normalizeBusArrival, normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank, searchRecords, sortSearchRecords, validCoordinates } from '../../src/lib/transit.js';
+import { formatEtaClock, formatEtaLabel, groupTrainArrivals, haversineKm, normalizeBusArrival, normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank, searchRecords, sortSearchRecords, validCoordinates } from '../../src/lib/transit.js';
 
 test('keeps leading zero bus stop codes and allows service suffixes', () => {
   assert.equal(normalizeStopCode(' 01012 '), '01012');
@@ -61,4 +61,15 @@ test("uses Singapore 24-hour time for ETAs beyond one hour", () => {
   assert.equal(formatEtaLabel("2026-11-02T02:05:00+08:00", now), "02:05");
   assert.equal(formatEtaClock("2026-11-02T02:05:00+08:00"), "02:05");
   assert.equal(formatEtaClock("not-a-date"), null);
+});
+
+
+test("groups MRT arrivals by line and direction regardless of destination", () => {
+  const groups = groupTrainArrivals([
+    { route: "NSL", directionId: "0", destination: "Jurong East" },
+    { route: "NSL", directionId: "0", destination: "Marina South Pier" },
+    { route: "NSL", directionId: "1", destination: "Woodlands" },
+  ]);
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups[0].map((arrival) => arrival.destination), ["Jurong East", "Marina South Pier"]);
 });

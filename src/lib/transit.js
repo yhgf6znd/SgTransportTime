@@ -50,6 +50,17 @@ export function formatEtaLabel(estimatedArrival, now = Date.now()) {
   return String(minutes) + ' min';
 }
 
+export function groupTrainArrivals(arrivals) {
+  const groups = new Map();
+  for (const arrival of arrivals) {
+    const key = [arrival.route ?? '', arrival.directionId ?? ''].join('|') || 'unknown';
+    const group = groups.get(key) ?? [];
+    group.push(arrival);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
+
 export function haversineKm(latitudeA, longitudeA, latitudeB, longitudeB) {
   const toRadians = (degrees) => degrees * Math.PI / 180;
   const latDelta = toRadians(latitudeB - latitudeA);
