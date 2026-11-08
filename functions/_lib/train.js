@@ -187,13 +187,17 @@ export async function trainArrivals(env, stationId) {
   const schedule = await loadTrainSchedule(env);
   const station = schedule.stations.find((item) => item.id === stationId);
   if (!station) throw new ProviderError('INVALID_INPUT', 'Choose a station from the current station directory.', 400);
-  const bytes = await ltaFeedBytes('GTFSRealtimeTrainTripUpdates', env);
-  let feed;
-  try { feed = decodeGtfsRealtime(bytes); }
-  catch { throw new ProviderError('UPSTREAM_INVALID', 'The train realtime feed could not be decoded.', 502); }
-  const liveArrivals = realtimeTrainArrivals(feed, station, Math.floor(Date.now() / 1000));
-  if (liveArrivals.length) return { station, arrivals: liveArrivals, status: 'live' };
+
   const scheduled = scheduledTrainArrivals(schedule, station);
+  try {
+    const bytes = await ltaFeedBytes('GTFSRealtimeTrainTripUpdates', env);
+    const feed = decodeGtfsRealtime(bytes);
+    const liveArrivals = realtimeTrainArrivals(feed, station, Math.floor(Date.now() / 1000));
+    if (liveArrivals.length) return { station, arrivals: liveArrivals, status: 'live' };
+  } catch {
+    // The published schedule remains the honest fallback when realtime data is unavailable.
+  }
+
   return { station, arrivals: scheduled, status: scheduled.length ? 'scheduled' : 'unavailable' };
 }
 

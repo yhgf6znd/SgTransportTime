@@ -1,0 +1,39 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { strToU8, zipSync } from 'fflate';
+import { clearTrainCache, trainArrivals } from '../../functions/_lib/train.js';
+
+const scheduleZip = zipSync({
+  'stops.txt': strToU8('stop_id,stop_name,location_type,parent_station,stop_lat,stop_lon\nNS25,City Hall,1,,,1.2931,103.852\nNS25-1,City Hall Platform 1,0,NS25,1.2931,103.852\n'),
+  'routes.txt': strToU8('route_id,route_short_name\nNSL,NSL\n'),
+  'trips.txt': strToU8('route_id,service_id,trip_id\nNSL,weekday,trip-scheduled\n'),
+  'stop_times.txt': strToU8('trip_id,arrival_time,stop_id,stop_sequence\ntrip-scheduled,08:30:00,NS25-1,1\n'),
+  'calendar.txt': strToU8('service_id,sunday,monday,tuesday,wednesday,thursday,friday,saturday,start_date,end_date\nweekday,1,0,0,0,0,0,0,20260101,20261231\n'),
+  'calendar_dates.txt': strToU8('service_id,date,exception_type\n'),
+});
+
+test('uses scheduled train arrivals when realtime trip updates fail', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  let requestCount = 0;
+  Date.now = () => Date.parse('2026-11-08T00:00:00Z');
+  globalThis.fetch = async (url) => {
+    requestCount += 1;
+    if (new URL(url).pathname.endsWith('/GTFSScheduleTrain')) {
+      return new Response(scheduleZip, { status: 200, headers: { 'Content-Type': 'application/zip' } });
+    }
+    return new Response('', { status: 503 });
+  };
+  clearTrainCache();
+  try {
+    const data = await trainArrivals({ LTA_ACCOUNT_KEY: 'test' }, 'NS25');
+    assert.equal(requestCount, 2);
+    assert.equal(data.status, 'scheduled');
+    assert.equal(data.arrivals[0].predictionStatus, 'scheduled');
+    assert.equal(data.arrivals[0].route, 'NSL');
+  } finally {
+    Date.now = originalNow;
+    globalThis.fetch = originalFetch;
+    clearTrainCache();
+  }
+});
