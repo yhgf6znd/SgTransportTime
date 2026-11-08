@@ -30,3 +30,20 @@ test('caches static LTA JSON payloads for four hours when Workers Cache is avail
     else globalThis.caches = originalCaches;
   }
 });
+
+test('continues upstream fetches when the Workers Cache API throws', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  let calls = 0;
+  globalThis.caches = { default: { match: async () => { throw new Error('cache unavailable'); }, put: async () => { throw new Error('cache unavailable'); } } };
+  globalThis.fetch = async () => { calls += 1; return new Response(JSON.stringify({ value: ['fresh'] }), { status: 200 }); };
+  try {
+    const body = await ltaJson('BusServices?ServiceNo=36', { LTA_ACCOUNT_KEY: 'test' }, 7000, STATIC_CACHE_SECONDS);
+    assert.deepEqual(body.value, ['fresh']);
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
