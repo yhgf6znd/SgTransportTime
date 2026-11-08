@@ -25,7 +25,7 @@ Dynamic datasets list Bus Arrival, Bus Stops, Bus Services, Bus Routes, GTFS Sch
 
 ### Bus Stops, Services and Routes
 
-- `BusStops` is paged with `$skip` and supplies stop code, description, road name and coordinates. The Worker keeps a bounded isolate-memory catalogue for one day to resolve names and coordinates; the client never receives the AccountKey.
+- `BusStops` is paged with `$skip` and supplies stop code, description, road name and coordinates. The Worker keeps a bounded four-hour stop catalogue in Workers Cache and isolate memory to resolve names and coordinates; the client never receives the AccountKey.
 - `BusServices?ServiceNo=...` supplies service number, operator, direction, category, origin/destination codes, loop description, and AM/PM peak/off-peak dispatch frequencies. These are scheduled metadata, not live arrival predictions.
 - `BusRoutes?ServiceNo=...` supplies ordered stop sequence, stop code, distance, operator/direction, and weekday/Saturday/Sunday first/last bus times. The UI groups by direction and displays the schedule as scheduled data.
 - The official LTA Bus Services page also exposes service-category navigation and a map-oriented experience. This implementation uses the documented DataMall APIs rather than scraping the page. Fare data and a complete public-service category catalogue are not exposed by the verified response fields and are not invented.
@@ -36,7 +36,7 @@ Dynamic datasets list Bus Arrival, Bus Stops, Bus Services, Bus Routes, GTFS Sch
   - `GET https://datamall2.mytransport.sg/ltaodataservice/GTFSScheduleTrain` — GTFS static schedule ZIP via a temporary `Link`.
   - `GET https://datamall2.mytransport.sg/ltaodataservice/GTFSRealTimeTrainServiceAlerts` — GTFS realtime service-alert protobuf via a temporary `Link`.
   - `GET https://datamall2.mytransport.sg/ltaodataservice/GTFSRealtimeTrainTripUpdates` — GTFS realtime trip-update protobuf via a temporary `Link`; the guide scopes this feed to train disruptions.
-- All three requests use the `AccountKey` header. The guide’s documented temporary host is `dmprod-datasets.s3.ap-southeast-1.amazonaws.com`, with links expiring after 15 minutes. The implementation applies an exact allowlist for that host and the LTA/Data.gov.sg API hosts; it never follows arbitrary hosts.
+- All three requests use the `AccountKey` header. The current guide’s documented temporary host is `dmproddatasets.s3.ap-southeast1.amazonaws.com`, with links expiring after 15 minutes. The implementation allowlists this current host and the previously documented equivalent host, plus the LTA/Data.gov.sg API hosts; it never follows arbitrary hosts.
 - The implementation parses `stops.txt` and groups platform records using `parent_station`; it also indexes `trips.txt`, `stop_times.txt`, `routes.txt`, `calendar.txt`, and `calendar_dates.txt` to produce the next planned arrivals. These results are explicitly marked `scheduled` and are never labeled live.
 - The separate legacy `TrainServiceAlerts` JSON endpoint remains supported for existing alerts; the GTFS service-alert protobuf feed requires a separate decoder before it can replace that path.
 - Feed IDs, platform mapping, current coverage, quotas, and redistribution terms require an authorized sample and are **PENDING**. When the disruption-only Trip Updates feed has no matching station predictions, the app falls back to the current planned schedule and labels it `scheduled`; it does not calculate or imply delay.

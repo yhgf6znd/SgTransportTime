@@ -71,7 +71,14 @@ export async function ltaFeedBytes(dataset, env, timeoutMs = 12000, cacheTtlSeco
     const link = item?.Link ?? item?.link ?? metadata?.Link ?? metadata?.link;
     if (typeof link !== 'string' || !/^https:\/\//i.test(link)) throw new ProviderError('UPSTREAM_INVALID', 'LTA did not provide a safe feed link.', 502);
     const downloadUrl = new URL(link);
-    const allowedHosts = new Set(['datamall2.mytransport.sg', 'datamall.lta.gov.sg', 'dmprod-datasets.s3.ap-southeast-1.amazonaws.com', 'api.data.gov.sg', 'api-open.data.gov.sg']);
+    const allowedHosts = new Set([
+      'datamall2.mytransport.sg',
+      'datamall.lta.gov.sg',
+      'dmproddatasets.s3.ap-southeast1.amazonaws.com',
+      'dmprod-datasets.s3.ap-southeast-1.amazonaws.com',
+      'api.data.gov.sg',
+      'api-open.data.gov.sg',
+    ]);
     if (!allowedHosts.has(downloadUrl.hostname)) throw new ProviderError('UPSTREAM_INVALID', 'LTA returned an unapproved feed host.', 502);
     const response = await fetchWithTimeout(downloadUrl, { headers: { Accept: 'application/octet-stream' } }, timeoutMs);
     if (!response.ok) throw new ProviderError('UPSTREAM_ERROR', 'The LTA feed download failed.', 502);
