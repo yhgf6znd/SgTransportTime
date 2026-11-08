@@ -1,4 +1,4 @@
-import { formatEtaLabel, normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank, sortSearchRecords } from './lib/transit.js';
+import { formatEtaClock, formatEtaLabel, normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank, sortSearchRecords } from './lib/transit.js';
 import { loadState, saveState, toggleFavourite } from './lib/storage.js';
 
 const $ = (selector) => document.querySelector(selector);
@@ -109,7 +109,10 @@ function renderBus(data, meta) {
       for (const arrival of service.arrivals.slice(0, 3)) {
         const minutes = parseEtaMinutes(arrival.estimatedArrival);
         const eta = node('div', undefined, 'eta' + (minutes !== null && minutes <= 2 ? ' soon' : ''));
-        eta.append(node('strong', minutesLabel(arrival)), renderArrivalMeta(arrival));
+        eta.append(node('strong', minutesLabel(arrival)));
+        const clock = minutes !== null && minutes < 60 ? formatEtaClock(arrival.estimatedArrival) : null;
+        if (clock) eta.append(node('span', clock, 'eta-clock'));
+        eta.append(renderArrivalMeta(arrival));
         grid.append(eta);
       }
       card.append(head, grid);

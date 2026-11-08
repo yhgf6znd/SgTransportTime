@@ -35,13 +35,18 @@ export function normalizeBusArrival(raw = {}) {
   };
 }
 
+export function formatEtaClock(estimatedArrival) {
+  if (!Number.isFinite(Date.parse(estimatedArrival ?? ''))) return null;
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(new Date(estimatedArrival));
+}
+
 export function formatEtaLabel(estimatedArrival, now = Date.now()) {
   const minutes = parseEtaMinutes(estimatedArrival, now);
   if (minutes === null) return 'No ETA';
   if (minutes <= 1) return 'Arriving';
-  if (minutes > 60) return new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).format(new Date(estimatedArrival));
+  if (minutes > 60) return formatEtaClock(estimatedArrival);
   return String(minutes) + ' min';
 }
 

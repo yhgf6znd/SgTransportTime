@@ -38,3 +38,7 @@ Frontend checkpoint (2026-11-09): bus-stop responses merge cached route coverage
 - [x] M18: show arrival timestamps in Singapore 24-hour format beyond 60 minutes
 
 Frontend checkpoint (2026-11-09): arrivals remain minute-based through 60 minutes and switch to `HH:mm` after that.
+
+- [x] M19: add a smaller 24-hour clock line below arrival ETAs under 60 minutes
+
+Frontend checkpoint (2026-11-09): short ETAs show both the minute countdown and Singapore `HH:mm` arrival time.
