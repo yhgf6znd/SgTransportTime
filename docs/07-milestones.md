@@ -46,3 +46,7 @@ Frontend checkpoint (2026-11-09): short ETAs show both the minute countdown and 
 - [x] M20: group MRT arrivals by line and direction while showing each destination beside its ETA
 
 Frontend checkpoint (2026-11-09): different destinations on the same line-direction share one arrival card.
+
+- [x] M21: show LTA live bus crowd and wheelchair-accessibility indicators beside each ETA
+
+Frontend checkpoint (2026-11-09): provider-supplied load and wheelchair flags are rendered as accessible inline badges.

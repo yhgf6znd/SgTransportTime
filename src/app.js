@@ -68,17 +68,38 @@ function formatClock(value) {
 
 function formatFrequency(value) { return value ? `${value} min` : '—'; }
 
+function etaBadge(icon, label, className) {
+  const badge = node("span", undefined, "eta-badge " + className);
+  badge.setAttribute("aria-label", label);
+  badge.title = label;
+  const iconNode = node("span", icon, "eta-badge-icon");
+  iconNode.setAttribute("aria-hidden", "true");
+  badge.append(iconNode, node("span", label, "eta-badge-label"));
+  return badge;
+}
+
+function loadIcon(code) {
+  return ({ SEA: "●", SDA: "◐", LSD: "◒" })[code] ?? null;
+}
+
+function renderArrivalIndicators(arrival) {
+  const box = node("span", undefined, "eta-indicators");
+  const crowdIcon = loadIcon(arrival.load);
+  if (crowdIcon) box.append(etaBadge(crowdIcon, "Crowd: " + loadLabel(arrival.load), "crowd-status crowd-" + arrival.load.toLowerCase()));
+  if (arrival.wheelchairAccessible === true) box.append(etaBadge("♿", "Wheelchair accessible", "wheelchair-status"));
+  return box.childElementCount ? box : null;
+}
+
 function renderArrivalMeta(arrival) {
-  const labels = [
-    arrival.destinationName ? `To ${arrival.destinationName}` : arrival.destinationCode ? `To stop ${arrival.destinationCode}` : null,
-    loadLabel(arrival.load),
-    vehicleLabel(arrival.vehicleType),
-    arrival.wheelchairAccessible === true ? 'Wheelchair accessible' : null,
-    arrival.monitored === true ? 'Live position' : arrival.monitored === false ? 'Scheduled estimate' : null,
-  ].filter(Boolean);
-  const box = node('div', labels.join(' · '), 'eta-meta');
+  const box = node("div", undefined, "eta-meta");
+  const destination = arrival.destinationName ? "To " + arrival.destinationName : arrival.destinationCode ? "To stop " + arrival.destinationCode : null;
+  if (destination) box.append(node("span", destination, "eta-detail"));
+  const vehicle = vehicleLabel(arrival.vehicleType);
+  if (vehicle) box.append(node("span", vehicle, "eta-detail"));
+  const monitoring = arrival.monitored === true ? "Live position" : arrival.monitored === false ? "Scheduled estimate" : null;
+  if (monitoring) box.append(node("span", monitoring, "eta-detail"));
   if (arrival.estimatedLocation) {
-    const link = mapLink('View estimated location', arrival.estimatedLocation.latitude, arrival.estimatedLocation.longitude);
+    const link = mapLink("View estimated location", arrival.estimatedLocation.latitude, arrival.estimatedLocation.longitude);
     if (link) box.append(link);
   }
   return box;
@@ -109,10 +130,13 @@ function renderBus(data, meta) {
       for (const arrival of service.arrivals.slice(0, 3)) {
         const minutes = parseEtaMinutes(arrival.estimatedArrival);
         const eta = node('div', undefined, 'eta' + (minutes !== null && minutes <= 2 ? ' soon' : ''));
-        eta.append(node('strong', minutesLabel(arrival)));
+        const primary = node('div', undefined, 'eta-primary');
+        primary.append(node('strong', minutesLabel(arrival)));
         const clock = minutes !== null && minutes < 60 ? formatEtaClock(arrival.estimatedArrival) : null;
-        if (clock) eta.append(node('span', clock, 'eta-clock'));
-        eta.append(renderArrivalMeta(arrival));
+        if (clock) primary.append(node('span', clock, 'eta-clock'));
+        const indicators = renderArrivalIndicators(arrival);
+        if (indicators) primary.append(indicators);
+        eta.append(primary, renderArrivalMeta(arrival));
         grid.append(eta);
       }
       card.append(head, grid);
