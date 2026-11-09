@@ -61,3 +61,7 @@ Frontend checkpoint (2026-11-09): bus type indicators use accessible inline SVG 
 - [x] M24: show the selected bus-service direction route immediately and open service arrivals from route stops
 
 Frontend checkpoint (2026-11-09): service selection loads the matching ordered direction; route-stop buttons open the filtered live arrival detail for that service and stop.
+
+- [x] M25: match selected bus-service routes by endpoint stop codes before direction fallback
+
+Frontend checkpoint (2026-11-09): route selection is covered by a regression fixture where endpoint identity overrides a conflicting provider direction label.

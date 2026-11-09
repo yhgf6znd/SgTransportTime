@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { dedupeBusLocations, mapWithConcurrency, routeRecord } from '../../functions/_lib/bus.js';
+import { selectBusRouteDirections } from '../../src/lib/transit.js';
 
 test('route normalization keeps zero-padded stop codes and schedule fields', () => {
   const record = routeRecord({
@@ -42,4 +43,14 @@ test('location deduplication uses provider coordinates and ignores missing locat
   ]);
   assert.equal(locations.length, 1);
   assert.equal(locations[0].vehicleType, 'SD');
+});
+
+
+test('selects the route matching service endpoints before its direction label', () => {
+  const directions = [
+    { direction: '1', stops: [{ busStopCode: '11111' }, { busStopCode: '22222' }] },
+    { direction: '2', stops: [{ busStopCode: '33333' }, { busStopCode: '44444' }] },
+  ];
+  const selected = selectBusRouteDirections(directions, { direction: '1', originCode: '33333', destinationCode: '44444' });
+  assert.deepEqual(selected.map((item) => item.direction), ['2']);
 });

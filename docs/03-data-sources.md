@@ -29,6 +29,7 @@ Dynamic datasets list Bus Arrival, Bus Stops, Bus Services, Bus Routes, GTFS Sch
 - `BusServices?ServiceNo=...` supplies service number, operator, direction, category, origin/destination codes, loop description, and AM/PM peak/off-peak dispatch frequencies. These are scheduled metadata, not live arrival predictions.
 - `BusRoutes?ServiceNo=...` supplies ordered stop sequence, stop code, distance, operator/direction, and weekday/Saturday/Sunday first/last bus times. The UI groups by direction and displays the schedule as scheduled data.
 - `BusRoutes` is paged and cached for four hours as a stop-to-service index used by `/api/bus/arrivals`; this keeps statically served services visible when the live `BusArrival` response has no ETA slots. Such services are marked `unavailable`, never given invented predictions.
+- When a service record is selected, the frontend pairs its route using the documented origin/destination stop codes and uses the numeric direction as a secondary match; this prevents a direction label mismatch from displaying the wrong ordered stop list.
 - The official LTA Bus Services page also exposes service-category navigation and a map-oriented experience. This implementation uses the documented DataMall APIs rather than scraping the page. Fare data and a complete public-service category catalogue are not exposed by the verified response fields and are not invented.
 
 ### Train feeds

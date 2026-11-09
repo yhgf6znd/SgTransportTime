@@ -50,6 +50,24 @@ export function formatEtaLabel(estimatedArrival, now = Date.now()) {
   return String(minutes) + ' min';
 }
 
+export function selectBusRouteDirections(directions, service) {
+  const available = Array.isArray(directions) ? directions : [];
+  if (!service) return available;
+  const wantedDirection = String(service.direction ?? "").trim();
+  const wantedOrigin = String(service.originCode ?? "").trim();
+  const wantedDestination = String(service.destinationCode ?? "").trim();
+  const scored = available.map((direction) => {
+    const stops = Array.isArray(direction.stops) ? direction.stops : [];
+    const first = stops[0]?.busStopCode;
+    const last = stops[stops.length - 1]?.busStopCode;
+    const endpointScore = (wantedOrigin && first === wantedOrigin ? 1 : 0) + (wantedDestination && last === wantedDestination ? 1 : 0);
+    const directionScore = wantedDirection && String(direction.direction ?? "").trim() === wantedDirection ? 1 : 0;
+    return { direction, score: endpointScore * 10 + directionScore };
+  });
+  const bestScore = Math.max(...scored.map((item) => item.score), 0);
+  return bestScore > 0 ? scored.filter((item) => item.score === bestScore).map((item) => item.direction) : available;
+}
+
 export function groupTrainArrivals(arrivals) {
   const groups = new Map();
   for (const arrival of arrivals) {

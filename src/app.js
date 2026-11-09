@@ -1,4 +1,4 @@
-import { formatEtaClock, formatEtaLabel, groupTrainArrivals, normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank, sortSearchRecords } from './lib/transit.js';
+import { formatEtaClock, formatEtaLabel, groupTrainArrivals, normalizeService, selectBusRouteDirections, normalizeStopCode, parseEtaMinutes, searchMatchRank, sortSearchRecords } from './lib/transit.js';
 import { loadState, saveState, toggleFavourite } from './lib/storage.js';
 
 const $ = (selector) => document.querySelector(selector);
@@ -343,7 +343,7 @@ async function showBusService(service) {
   try {
     const body = await api("/api/bus/routes?service=" + encodeURIComponent(service.serviceNo));
     renderServiceInfo(service);
-    appendRoute(body.data, service.direction);
+    appendRoute(body.data, service);
     setStatus("Scheduled route for service " + service.serviceNo + (service.direction ? " · Direction " + service.direction : "") + " · LTA DataMall.");
   } catch (error) {
     renderServiceInfo(service);
@@ -361,10 +361,8 @@ function scheduleTable(firstLast) {
   return table;
 }
 
-function routeDirections(data, selectedDirection) {
-  if (!selectedDirection) return data.directions;
-  const selected = data.directions.filter((direction) => String(direction.direction) === String(selectedDirection));
-  return selected.length ? selected : data.directions;
+function routeDirections(data, selectedService) {
+  return selectBusRouteDirections(data.directions, selectedService);
 }
 
 function openRouteStop(service, stop) {
@@ -377,10 +375,10 @@ function openRouteStop(service, stop) {
   return refreshBus(stop.busStopCode, service);
 }
 
-function appendRoute(data, selectedDirection = null) {
-  const directions = routeDirections(data, selectedDirection);
+function appendRoute(data, selectedService = null) {
+  const directions = routeDirections(data, selectedService);
   const heading = node("div", undefined, "card-head");
-  const directionLabel = selectedDirection && directions.length === 1 ? " · Direction " + directions[0].direction : "";
+  const directionLabel = selectedService?.direction && directions.length === 1 ? " · Direction " + directions[0].direction : "";
   heading.append(node("h2", "Service " + data.service + " route" + directionLabel, "card-title"), chip("scheduled"));
   results.append(heading);
   for (const direction of directions) {
