@@ -77,3 +77,7 @@ Frontend checkpoint (2026-11-09): bus route cards use final stop names/codes, wh
 - [x] M28: exact-filter paginated LTA bus service and route catalogues by normalized ServiceNo
 
 Backend checkpoint (2026-11-09): BusServices and BusRoutes are fetched as paginated static datasets, cached per page, and filtered before route metadata or service-wide live fan-out is built.
+
+- [x] M29: limit MRT arrivals and make transport refreshes data-granular
+
+Frontend checkpoint (2026-11-09): MRT/LRT cards show the next three arrivals per line and direction; automatic MRT polling watches changed disruption alerts only, while bus polling replaces only arrival cards.

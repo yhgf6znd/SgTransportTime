@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatEtaClock, formatEtaLabel, groupTrainArrivals, haversineKm, normalizeBusArrival, normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank, searchRecords, sortSearchRecords, validCoordinates } from '../../src/lib/transit.js';
+import { formatEtaClock, formatEtaLabel, groupTrainArrivals, limitTrainArrivals, haversineKm, normalizeBusArrival, normalizeService, normalizeStopCode, parseEtaMinutes, searchMatchRank, searchRecords, sortSearchRecords, validCoordinates } from '../../src/lib/transit.js';
 
 test('keeps leading zero bus stop codes and allows service suffixes', () => {
   assert.equal(normalizeStopCode(' 01012 '), '01012');
@@ -72,4 +72,9 @@ test("groups MRT arrivals by line and direction regardless of destination", () =
   ]);
   assert.equal(groups.length, 2);
   assert.deepEqual(groups[0].map((arrival) => arrival.destination), ["Jurong East", "Marina South Pier"]);
+});
+
+test("limits MRT arrivals to the next three per line and direction", () => {
+  assert.deepEqual(limitTrainArrivals([1, 2, 3, 4]), [1, 2, 3]);
+  assert.deepEqual(limitTrainArrivals(null), []);
 });

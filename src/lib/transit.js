@@ -68,6 +68,11 @@ export function selectBusRouteDirections(directions, service) {
   return bestScore > 0 ? scored.filter((item) => item.score === bestScore).map((item) => item.direction) : available;
 }
 
+export function limitTrainArrivals(arrivals, limit = 3) {
+  const count = Math.max(0, Number(limit) || 0);
+  return Array.isArray(arrivals) ? arrivals.slice(0, count) : [];
+}
+
 export function groupTrainArrivals(arrivals) {
   const groups = new Map();
   for (const arrival of arrivals) {

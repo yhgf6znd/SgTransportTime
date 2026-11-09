@@ -1,8 +1,8 @@
-import { formatEtaClock, formatEtaLabel, groupTrainArrivals, normalizeService, selectBusRouteDirections, normalizeStopCode, parseEtaMinutes, searchMatchRank, sortSearchRecords } from './lib/transit.js';
+import { formatEtaClock, formatEtaLabel, groupTrainArrivals, limitTrainArrivals, normalizeService, selectBusRouteDirections, normalizeStopCode, parseEtaMinutes, searchMatchRank, sortSearchRecords } from './lib/transit.js';
 import { loadState, saveState, toggleFavourite } from './lib/storage.js';
 
 const $ = (selector) => document.querySelector(selector);
-const state = { view: 'search', saved: loadState(window.localStorage), current: null, timer: null, searchTimer: null, searchQuery: '', searchRecords: [], stations: [], stops: [] };
+const state = { view: 'search', saved: loadState(window.localStorage), current: null, timer: null, searchTimer: null, searchQuery: '', searchRecords: [], stations: [], stops: [], trainAlertsFingerprint: null };
 const results = $('#results');
 
 function node(tag, text, className) {
@@ -150,35 +150,30 @@ function renderArrivalMeta(arrival) {
   return box;
 }
 
-function renderBus(data, meta) {
-  clearResults();
-  const top = node('div', undefined, 'card-head');
-  const titleGroup = node('div', undefined, 'card-title-group');
-  const stopTitle = [data.stopName, data.stopRoad].filter(Boolean).join(' · ') || `Stop ${data.stopCode}`;
-  titleGroup.append(node('div', `Stop ${data.stopCode}`, 'card-title'), node('p', stopTitle, 'card-sub'));
-  top.append(titleGroup, chip(meta.status));
-  results.append(top);
+function renderBusCards(container, data) {
+  container.replaceChildren();
+  container.removeAttribute("aria-busy");
   if (!data.services.length) {
-    results.append(node('div', 'No active arrivals were returned for this stop or service. This is not a prediction of zero wait time.', 'empty'));
+    container.append(node("div", "No active arrivals were returned for this stop or service. This is not a prediction of zero wait time.", "empty"));
     return;
   }
   for (const service of data.services) {
-    const card = node('article', undefined, 'card');
-    const head = node('div', undefined, 'card-head');
-    const title = node('div');
-    title.append(node('div', service.serviceNo, 'card-title'), node('p', `${service.operator ?? 'Bus'} · LTA DataMall`, 'card-sub'));
-    head.append(title, saveButton({ kind: 'bus', code: data.stopCode, service: service.serviceNo, name: `Stop ${data.stopCode}` }));
+    const card = node("article", undefined, "card");
+    const head = node("div", undefined, "card-head");
+    const title = node("div");
+    title.append(node("div", service.serviceNo, "card-title"), node("p", [service.operator ?? "Bus", "LTA DataMall"].join(" · "), "card-sub"));
+    head.append(title, saveButton({ kind: "bus", code: data.stopCode, service: service.serviceNo, name: "Stop " + data.stopCode }));
     if (!service.arrivals.length) {
-      card.append(head, node('p', 'No live arrival data is available for this service right now. This is not a prediction of zero wait time.', 'empty'));
+      card.append(head, node("p", "No live arrival data is available for this service right now. This is not a prediction of zero wait time.", "empty"));
     } else {
-      const grid = node('div', undefined, 'eta-grid');
+      const grid = node("div", undefined, "eta-grid");
       for (const arrival of service.arrivals.slice(0, 3)) {
         const minutes = parseEtaMinutes(arrival.estimatedArrival);
-        const eta = node('div', undefined, 'eta' + (minutes !== null && minutes <= 2 ? ' soon' : ''));
-        const primary = node('div', undefined, 'eta-primary');
-        primary.append(node('strong', minutesLabel(arrival)));
+        const eta = node("div", undefined, "eta" + (minutes !== null && minutes <= 2 ? " soon" : ""));
+        const primary = node("div", undefined, "eta-primary");
+        primary.append(node("strong", minutesLabel(arrival)));
         const clock = minutes !== null && minutes < 60 ? formatEtaClock(arrival.estimatedArrival) : null;
-        if (clock) primary.append(node('span', clock, 'eta-clock'));
+        if (clock) primary.append(node("span", clock, "eta-clock"));
         const indicators = renderArrivalIndicators(arrival);
         if (indicators) primary.append(indicators);
         eta.append(primary, renderArrivalMeta(arrival));
@@ -186,8 +181,43 @@ function renderBus(data, meta) {
       }
       card.append(head, grid);
     }
-    results.append(card);
+    container.append(card);
   }
+}
+
+function renderBus(data, meta) {
+  clearResults();
+  const top = node("div", undefined, "card-head");
+  const titleGroup = node("div", undefined, "card-title-group");
+  const stopTitle = [data.stopName, data.stopRoad].filter(Boolean).join(" · ") || "Stop " + data.stopCode;
+  titleGroup.append(node("div", "Stop " + data.stopCode, "card-title"), node("p", stopTitle, "card-sub"));
+  top.append(titleGroup);
+  const status = chip(meta.status);
+  status.id = "bus-status-chip";
+  top.append(status);
+  const cards = node("div", undefined, "arrival-cards");
+  cards.id = "bus-arrival-cards";
+  results.append(top, cards);
+  renderBusCards(cards, data);
+}
+
+function updateBusStatus(meta) {
+  const current = document.querySelector("#bus-status-chip");
+  if (!current) return;
+  const next = chip(meta.status);
+  next.id = "bus-status-chip";
+  current.replaceWith(next);
+}
+
+function showBusCardsLoading() {
+  const cards = document.querySelector("#bus-arrival-cards");
+  if (!cards) return false;
+  const loading = node("div", undefined, "data-loading");
+  loading.setAttribute("role", "status");
+  loading.append(node("span", undefined, "loading-spinner"), node("span", "Refreshing bus arrivals…"));
+  cards.replaceChildren(loading);
+  cards.setAttribute("aria-busy", "true");
+  return true;
 }
 
 function trainDirectionCards(container, arrivals) {
@@ -205,7 +235,7 @@ function trainDirectionCards(container, arrivals) {
     directionHead.append(directionTitle);
     direction.append(directionHead);
     const grid = node("div", undefined, "eta-grid");
-    for (const arrival of groupArrivals.slice(0, 6)) {
+    for (const arrival of limitTrainArrivals(groupArrivals, 3)) {
       const eta = node("div", undefined, "eta");
       const arrivalLabel = arrival.predictionStatus === "scheduled" ? "Planned schedule" : "Realtime feed";
       const primary = node("div", undefined, "eta-primary");
@@ -485,18 +515,47 @@ function scheduleSearch() {
 
 async function refreshBus(stop, service) {
   clearTimeout(state.timer);
-  showDataLoading('Loading bus arrivals…');
-  setStatus('Loading bus arrivals…');
-  $('#refresh-button').hidden = false;
-  $('#refresh-button').disabled = true;
+  const previous = state.current?.kind === "bus" && state.current.stop === stop && state.current.service === service
+    ? state.current
+    : null;
+  const cardOnly = Boolean(previous && document.querySelector("#bus-arrival-cards"));
+  const refreshButton = document.querySelector("#refresh-button");
+  if (cardOnly) {
+    showBusCardsLoading();
+    setStatus("Refreshing bus arrivals…");
+  } else {
+    showDataLoading("Loading bus arrivals…");
+    setStatus("Loading bus arrivals…");
+  }
+  refreshButton.hidden = false;
+  refreshButton.disabled = true;
   try {
-    const body = await api(`/api/bus/arrivals?stop=${encodeURIComponent(stop)}${service ? `&service=${encodeURIComponent(service)}` : ''}`);
-    state.current = { kind: 'bus', stop, service, data: body.data, meta: body.meta };
-    renderBus(body.data, body.meta);
-    setStatus(`Updated ${new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', timeStyle: 'short' }).format(new Date())} SGT · ${body.meta.source}`);
+    const path = "/api/bus/arrivals?stop=" + encodeURIComponent(stop) + (service ? "&service=" + encodeURIComponent(service) : "");
+    const body = await api(path);
+    state.current = { kind: "bus", stop, service, data: body.data, meta: body.meta };
+    if (cardOnly) {
+      const cards = document.querySelector("#bus-arrival-cards");
+      if (cards) renderBusCards(cards, body.data);
+      updateBusStatus(body.meta);
+    } else {
+      renderBus(body.data, body.meta);
+    }
+    setStatus("Updated " + new Intl.DateTimeFormat("en-SG", { timeZone: "Asia/Singapore", timeStyle: "short" }).format(new Date()) + " SGT · " + body.meta.source);
     scheduleRefresh();
-  } catch (error) { clearResults(); setStatus(apiError(error)); }
-  finally { $('#refresh-button').disabled = false; }
+  } catch (error) {
+    if (cardOnly && previous) {
+      const cards = document.querySelector("#bus-arrival-cards");
+      if (cards) renderBusCards(cards, previous.data);
+      updateBusStatus(previous.meta);
+      setStatus(apiError(error));
+      scheduleRefresh();
+    } else {
+      clearResults();
+      setStatus(apiError(error));
+    }
+  } finally {
+    refreshButton.disabled = false;
+  }
 }
 
 async function refreshTrain(station) {
@@ -515,13 +574,25 @@ async function refreshTrain(station) {
   finally { $('#refresh-button').disabled = false; }
 }
 
+function renderTrainAlerts(alerts) {
+  const box = document.querySelector("#train-alerts");
+  box.hidden = !alerts.length;
+  box.textContent = alerts.map((alert) => [alert.title, alert.line].filter(Boolean).join(" · ")).join(" | ");
+}
+
 async function loadAlerts() {
   try {
-    const body = await api('/api/train/alerts');
-    const box = $('#train-alerts');
-    box.hidden = !body.data.alerts.length;
-    box.textContent = body.data.alerts.map((alert) => [alert.title, alert.line].filter(Boolean).join(' · ')).join(' | ');
-  } catch { /* Alerts are supplementary. */ }
+    const body = await api("/api/train/alerts");
+    const alerts = Array.isArray(body.data.alerts) ? body.data.alerts : [];
+    const fingerprint = JSON.stringify(alerts);
+    if (fingerprint !== state.trainAlertsFingerprint) {
+      state.trainAlertsFingerprint = fingerprint;
+      renderTrainAlerts(alerts);
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function nearby(latitude, longitude) {
@@ -544,12 +615,25 @@ async function nearby(latitude, longitude) {
 }
 
 
+function scheduleTrainDisruptionRefresh() {
+  clearTimeout(state.timer);
+  state.timer = setTimeout(async () => {
+    if (!document.hidden && state.current?.kind === "train") {
+      await loadAlerts();
+      scheduleTrainDisruptionRefresh();
+    }
+  }, state.saved.pollingSeconds * 1000);
+}
+
 function scheduleRefresh() {
   clearTimeout(state.timer);
+  if (state.current?.kind === "train") {
+    scheduleTrainDisruptionRefresh();
+    return;
+  }
   state.timer = setTimeout(() => {
-    if (!document.hidden && state.current) {
-      if (state.current.kind === 'bus') refreshBus(state.current.stop, state.current.service);
-      else if (state.current.kind === 'train') refreshTrain(state.current.station);
+    if (!document.hidden && state.current?.kind === "bus") {
+      refreshBus(state.current.stop, state.current.service);
     }
   }, state.saved.pollingSeconds * 1000);
 }

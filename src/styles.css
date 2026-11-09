@@ -9,3 +9,5 @@
 .data-loading{display:flex;align-items:center;justify-content:center;gap:10px;min-height:120px;padding:22px;border:1px solid var(--border);border-radius:18px;background:var(--surface);color:var(--muted)}.loading-spinner{width:1.2rem;height:1.2rem;flex:none;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:loading-spin .8s linear infinite} @keyframes loading-spin{to{transform:rotate(360deg)}} @media(prefers-reduced-motion:reduce){.loading-spinner{animation:none}}
 
 .route-stop-button{display:block;flex:1;min-width:0;padding:0;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer}.route-stop-button strong,.route-stop-button span{display:block}.route-stop-button:hover{text-decoration:underline}
+
+.arrival-cards{display:grid;gap:12px}
