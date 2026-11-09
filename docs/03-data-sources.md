@@ -1,6 +1,6 @@
 # Data source verification log
 
-**Verified documentation links on 2026-11-08.** The links and fields below were checked against the current official pages available on that date. No authenticated provider call was made from this repository, so live behavior remains pending.
+**Verified documentation links on 2026-11-09.** The links and fields below were checked against the current official pages available on that date. Public production smoke requests confirmed BusServices, BusStops and BusArrival connectivity without exposing credentials; no direct authenticated provider call was made from this repository.
 
 - LTA DataMall datasets: https://datamall.lta.gov.sg/content/datamall/en/dynamic-data.html
 - Local LTA API guide reference: [`docs/reference/LTA_DataMall_API_User_Guide.pdf`](reference/LTA_DataMall_API_User_Guide.pdf), version 6.11 (30 Oct 2026).
@@ -10,6 +10,9 @@
 - OneMap Search: https://www.onemap.gov.sg/apidocs/search
 - Cloudflare Workers static assets: https://developers.cloudflare.com/workers/static-assets/binding/
 - Cloudflare secrets: https://developers.cloudflare.com/workers/configuration/secrets/
+- Cloudflare D1 limits: https://developers.cloudflare.com/d1/platform/limits/
+- Cloudflare D1 migrations: https://developers.cloudflare.com/d1/reference/migrations/
+- Cloudflare Cron Triggers: https://developers.cloudflare.com/workers/configuration/cron-triggers/
 
 ## LTA
 
@@ -27,8 +30,9 @@ Dynamic datasets list Bus Arrival, Bus Stops, Bus Services, Bus Routes, GTFS Sch
 
 - `BusStops` is paged with `$skip` and supplies stop code, description, road name and coordinates. The Worker keeps a bounded stop catalogue until the next 04:00 Singapore time in Workers Cache and isolate memory to resolve names and coordinates; the client never receives the AccountKey.
 - `BusServices` is a paged static catalogue. The Worker caches the complete assembled catalogue until the next 04:00 Singapore time, keeps a seven-day last-known-good copy for transient refresh failures, then exact-filters the normalized `ServiceNo` requested by the client before returning service number, operator, direction, category, origin/destination codes, loop description, and AM/PM peak/off-peak dispatch frequencies. These are scheduled metadata, not live arrival predictions.
-- `BusRoutes` is a paged static catalogue. The Worker scans the full current catalogue within a bounded 100,000-row skip ceiling, caches the complete assembled catalogue until the next 04:00 Singapore time, keeps a seven-day last-known-good copy for transient refresh failures, exact-filters the normalized `ServiceNo`, and groups its ordered stop sequence, stop code, distance, operator/direction, and weekday/Saturday/Sunday first/last bus times. A cold-cache service lookup can fall back to the service-scoped response. The UI displays the schedule as scheduled data.
-- `BusRoutes` is paged and cached until the next 04:00 Singapore time as a stop-to-service index used by `/api/bus/arrivals`; this keeps statically served services visible when the live `BusArrival` response has no ETA slots. Such services are marked `unavailable`, never given invented predictions.
+- `BusRoutes` documents only 500-row responses plus `$skip` pagination; a `ServiceNo` request filter is not documented. The same Worker's five-minute Cron handler therefore imports at most 15 pages per invocation into D1, bounded by the 100,000-row skip ceiling. A refresh activates atomically only after the final short page; the prior complete generation remains readable after transient failures.
+- Indexed D1 lookups by normalized service and five-digit stop replace request-time full-catalogue scans. The UI groups the stored ordered stop sequence, distance, operator/direction, and weekday/Saturday/Sunday first/last times as scheduled data.
+- The D1 stop index supplies static service coverage to `/api/bus/arrivals`; services without current BusArrival ETA slots remain `unavailable`, never receive invented predictions.
 - When a service record is selected, the frontend pairs its route using the documented origin/destination stop codes and uses the numeric direction as a secondary match; this prevents a direction label mismatch from displaying the wrong ordered stop list.
 - The official LTA Bus Services page also exposes service-category navigation and a map-oriented experience. This implementation uses the documented DataMall APIs rather than scraping the page. Fare data and a complete public-service category catalogue are not exposed by the verified response fields and are not invented.
 

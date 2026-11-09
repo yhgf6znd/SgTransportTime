@@ -7,6 +7,7 @@ import { onRequestGet as serviceLocations } from '../../functions/api/bus/servic
 import { dedupeBusLocations } from '../../functions/_lib/bus.js';
 import { clearBusCache } from '../../functions/_lib/lta.js';
 
+import { routeDatabase } from '../helpers/route-db.js';
 function routeResponse() {
   return {
     value: [
@@ -57,7 +58,8 @@ test('service arrivals query each unique route stop and attach live predictions 
   clearBusCache();
   globalThis.fetch = mock.fetch;
   try {
-    const response = await serviceArrivals({ request: new Request('https://example.test/api/bus/service-arrivals?service=36a'), env: { LTA_ACCOUNT_KEY: 'test' } });
+    const env = { LTA_ACCOUNT_KEY: 'test', ROUTES_DB: routeDatabase(routeResponse().value) };
+    const response = await serviceArrivals({ request: new Request('https://example.test/api/bus/service-arrivals?service=36a'), env });
     const body = await response.json();
     assert.equal(response.status, 200);
     assert.equal(body.data.service, '36A');
@@ -79,7 +81,8 @@ test('service locations remove duplicate coordinates from multiple ETA slots and
   clearBusCache();
   globalThis.fetch = mock.fetch;
   try {
-    const response = await serviceLocations({ request: new Request('https://example.test/api/bus/service-locations?service=36A'), env: { LTA_ACCOUNT_KEY: 'test' } });
+    const env = { LTA_ACCOUNT_KEY: 'test', ROUTES_DB: routeDatabase(routeResponse().value) };
+    const response = await serviceLocations({ request: new Request('https://example.test/api/bus/service-locations?service=36A'), env });
     const body = await response.json();
     assert.equal(response.status, 200);
     assert.equal(body.data.locations.length, 2);

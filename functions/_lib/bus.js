@@ -1,6 +1,6 @@
 import { normalizeBusArrival, normalizeService } from '../../src/lib/transit.js';
-import { ltaJson, busRoutes, busStops, ltaServiceRows } from './lta.js';
-import { staticTransportCacheSeconds } from './cache.js';
+import { ltaJson, busStops } from './lta.js';
+import { routeRowsForService, routeServicesForStop } from './bus-route-catalogue.js';
 
 function stopLocation(stop) {
   return stop && Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude)
@@ -54,11 +54,11 @@ export function routeRecord(raw, names) {
 }
 
 export async function loadBusRoute(service, env) {
-  const payload = await ltaServiceRows('BusRoutes', service, env, 500, staticTransportCacheSeconds());
+  const payload = await routeRowsForService(service, env);
   let stops = [];
   try { stops = await busStops(env); } catch { /* Route data remains useful without catalogue metadata. */ }
   const names = new Map(stops.map((stop) => [stop.code, stop]));
-  const rows = payload
+  const rows = payload.rows
     .filter((row) => normalizeService(row?.ServiceNo) === service)
     .map((row) => routeRecord(row, names))
     .filter(Boolean);
@@ -67,7 +67,7 @@ export async function loadBusRoute(service, env) {
     operator: rows.find((row) => row.direction === direction)?.operator ?? null,
     stops: rows.filter((row) => row.direction === direction).sort((a, b) => a.stopSequence - b.stopSequence),
   }));
-  return { service, directions, names };
+  return { service, directions, names, updatedAt: payload.updatedAt };
 }
 
 export async function fetchBusArrivalsAtStop(stopCode, service, env, names = new Map()) {
@@ -89,13 +89,7 @@ export async function fetchBusArrivalsAtStop(stopCode, service, env, names = new
 }
 
 export async function busServicesAtStop(stopCode, env) {
-  const rows = await busRoutes(env);
-  const services = new Map();
-  for (const row of rows) {
-    if (row.busStopCode !== stopCode || services.has(row.serviceNo)) continue;
-    services.set(row.serviceNo, { serviceNo: row.serviceNo, operator: row.operator });
-  }
-  return [...services.values()].sort((a, b) => a.serviceNo.localeCompare(b.serviceNo, undefined, { numeric: true }));
+  return routeServicesForStop(stopCode, env);
 }
 
 export async function mapWithConcurrency(items, limit, mapper) {

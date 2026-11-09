@@ -92,6 +92,10 @@ Backend checkpoint (2026-11-09): the previous skip ceiling excluded services aft
 
 - [x] M32: expire static transport caches at the next 04:00 Singapore rollover
 
-Backend checkpoint (2026-11-09): BusRoutes, BusServices, BusStops, and train schedules use a calculated TTL to the next 04:00 Singapore rollover for catalogue entries, API responses, and in-memory indexes; the seven-day last-known-good fallback remains available for transient provider failures.
+Backend checkpoint (2026-11-09): BusServices, BusStops, and train schedules use a calculated TTL to the next 04:00 Singapore rollover for catalogue entries, API responses, and in-memory indexes; the seven-day last-known-good fallback remains available for transient provider failures.
 
-Backend checkpoint (2026-11-09): paginated BusRoutes and BusServices data is assembled and cached as a complete catalogue, with a last-known-good static fallback and service-scoped cold-cache fallback so transient provider failures do not erase scheduled route views.
+Backend checkpoint (2026-11-09): the original complete-catalogue Cache API design for BusRoutes was superseded by M33 after live deployment exposed the 50-subrequest limit.
+
+- [x] M33: move the complete BusRoutes catalogue to indexed D1 storage
+
+Backend checkpoint (2026-11-09): route and stop-coverage requests use indexed D1 reads with no request-time BusRoutes provider fan-out. A five-minute Cron imports at most 15 pages per invocation, activates only complete generations, and preserves the prior generation after refresh errors. Production D1 creation, migration, first sync and deployment remain manual release actions.

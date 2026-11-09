@@ -5,6 +5,7 @@ import { clearBusCache } from '../../functions/_lib/lta.js';
 import { onRequestGet as health } from '../../functions/api/health.js';
 import { onRequestGet as trainArrivals } from '../../functions/api/train/arrivals.js';
 import { onRequestGet as trainStations } from '../../functions/api/train/stations.js';
+import { routeDatabase } from '../helpers/route-db.js';
 
 test('health never exposes configuration', async () => {
   const response = health(); const body = await response.json();
@@ -61,14 +62,15 @@ test("bus stop keeps route services without live ETA data", async () => {
   globalThis.fetch = async (request) => {
     const url = String(request.url ?? request);
     if (url.includes("BusStops")) return new Response(JSON.stringify({ value: [{ BusStopCode: "01012", Description: "Origin", RoadName: "Example Road", Latitude: "1.3", Longitude: "103.8" }] }), { status: 200 });
-    if (url.includes("BusRoutes")) return new Response(JSON.stringify({ value: [
-      { ServiceNo: "36", Operator: "SBST", BusStopCode: "01012" },
-      { ServiceNo: "67", Operator: "SMRT", BusStopCode: "01012" },
-    ] }), { status: 200 });
     return new Response(JSON.stringify({ Services: [{ ServiceNo: "36", Operator: "SBST", NextBus: { EstimatedArrival: "2026-11-09T12:00:00+08:00" } }] }), { status: 200 });
   };
   try {
-    const response = await busArrivals({ request: new Request("https://example.test/api/bus/arrivals?stop=01012"), env: { LTA_ACCOUNT_KEY: "test" } });
+    const routes = [
+      { ServiceNo: "36", Operator: "SBST", Direction: "1", StopSequence: "1", BusStopCode: "01012" },
+      { ServiceNo: "67", Operator: "SMRT", Direction: "1", StopSequence: "1", BusStopCode: "01012" },
+    ];
+    const env = { LTA_ACCOUNT_KEY: "test", ROUTES_DB: routeDatabase(routes) };
+    const response = await busArrivals({ request: new Request("https://example.test/api/bus/arrivals?stop=01012"), env });
     const body = await response.json();
     assert.equal(response.status, 200);
     assert.deepEqual(body.data.services.map((item) => item.serviceNo), ["36", "67"]);

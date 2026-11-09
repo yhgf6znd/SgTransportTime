@@ -10,6 +10,19 @@
 8. Configure Workers Builds to deploy the production branch only after review, with preview command `npx wrangler preview` if previews are enabled. Keep preview bindings separate from production bindings. Do not add a manually managed `CLOUDFLARE_API_TOKEN` unless required; Workers Builds can generate its own build token.
 9. Validate live station coverage, source attribution, quotas, errors, caching, PWA behavior. Document rollback and key rotation.
 
+### D1 route catalogue setup
+
+Create the D1 database and apply its migration before deploying this version:
+
+```sh
+npm run db:create
+npm run db:migrate:remote
+```
+
+`db:create` is an external Cloudflare operation. It appends the `ROUTES_DB` binding and generated database UUID to `wrangler.toml`; review and commit that non-secret binding configuration. Use `npm run db:migrate:local` for local Wrangler development.
+
+After deployment, the configured five-minute Cron imports at most 15 BusRoutes pages per invocation. Until its first complete generation is activated, route endpoints return `CATALOGUE_WARMING` instead of retrying the full provider catalogue. Keep the existing Worker deployed until the D1 binding and migration are ready.
+
 ### Manual Wrangler deployment
 
 For an explicitly authorized manual deployment, run:

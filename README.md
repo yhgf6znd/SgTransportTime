@@ -16,6 +16,8 @@ For Workers Builds, configure `npm run build` and keep the default deploy comman
 
 For live local requests, create a gitignored `.dev.vars` with `LTA_ACCOUNT_KEY` and/or `ONEMAP_EMAIL` plus `ONEMAP_PASSWORD`. Never put credentials in frontend files or commit that file. Without credentials, deterministic tests still run but live provider features correctly return configuration/unavailable states.
 
+Scheduled bus routes use a `ROUTES_DB` D1 binding. After creating the binding as described in `docs/06-deployment.md`, run `npm run db:migrate:local` before local route testing. Database creation, remote migration and deployment are manual Cloudflare operations.
+
 ## Start here (Cursor)
 
 1. Extract this archive and open **this folder** in Cursor. Keep `.agents/`, `AGENTS.md`, `docs/`, and `prompts/` in the repository.
@@ -25,9 +27,10 @@ For live local requests, create a gitignored `.dev.vars` with `LTA_ACCOUNT_KEY` 
 5. Obtain your own LTA DataMall key and OneMap account. Put secrets only in Cloudflare encrypted Worker environment variables (or gitignored local `.dev.vars`), not chat, git, JS or WASM.
 6. Every stage must end with test results and a list of anything that still needs real credentials. Do not mark live LTA/OneMap validation complete on mocks alone.
 
-**The repository code is implemented, but not live-verified or deployed.** Provider credentials, Workers project setup, and authorized smoke tests remain release tasks.
+**The existing public Worker was read-only smoke-tested on 2026-11-09 for health, BusServices, BusStops and BusArrival.** The D1 route-catalogue change in this working tree has not been configured or deployed; direct authenticated provider coverage tests remain release tasks.
 
 ## Runtime behavior
+- Scheduled BusRoutes are imported in bounded Cron batches and served from indexed D1 rows, so route views do not fan out across the full LTA catalogue.
 
 - Bus arrival requests use LTA DataMall BusArrival v3 and display provider timestamps, load/accessibility when supplied, and `live` status.
 - Train stations are queried by canonical LTA GTFS station code; either code at an interchange (for example `NS9` or `TE2`) returns all lines. Realtime Trip Updates are feed-specific; absent predictions show `unavailable`, with planned arrivals retained as the fallback.

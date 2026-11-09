@@ -1,13 +1,11 @@
 import { fetchWithTimeout, ProviderError, readJson } from './http.js';
 import { matchWorkerCache, putWorkerCache, staticTransportCacheSeconds } from './cache.js';
-import { normalizeService, normalizeStopCode } from '../../src/lib/transit.js';
+import { normalizeService } from '../../src/lib/transit.js';
 
 export const LTA_BASE = 'https://datamall2.mytransport.sg/ltaodataservice/';
 const MAX_LTA_SKIP = 100_000;
 let busStopCache = null;
 let busStopCacheExpiresAt = 0;
-let busRouteCache = null;
-let busRouteCacheExpiresAt = 0;
 
 function requireKey(env) {
   if (!env?.LTA_ACCOUNT_KEY) throw new ProviderError('CONFIGURATION', 'Live LTA data is not configured for this deployment.', 503);
@@ -192,30 +190,8 @@ export async function busStops(env) {
   return busStopCache;
 }
 
-export function busRouteRecord(raw) {
-  const serviceNo = normalizeService(raw?.ServiceNo);
-  const busStopCode = normalizeStopCode(raw?.BusStopCode);
-  if (!serviceNo || !busStopCode) return null;
-  return {
-    serviceNo,
-    busStopCode,
-    operator: String(raw?.Operator ?? "").slice(0, 20) || null,
-  };
-}
-
-export async function busRoutes(env) {
-  const now = Date.now();
-  if (busRouteCache && now < busRouteCacheExpiresAt) return busRouteCache;
-  const cacheSeconds = staticTransportCacheSeconds(now);
-  const rows = await pagedLta("BusRoutes", env, 500, cacheSeconds);
-  busRouteCache = rows.map(busRouteRecord).filter(Boolean);
-  busRouteCacheExpiresAt = now + cacheSeconds * 1000;
-  return busRouteCache;
-}
 
 export function clearBusCache() {
   busStopCache = null;
   busStopCacheExpiresAt = 0;
-  busRouteCache = null;
-  busRouteCacheExpiresAt = 0;
 }

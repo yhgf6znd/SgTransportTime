@@ -8,6 +8,9 @@
 - [ ] Connect the repository to one Cloudflare Workers project through Workers Builds.
 - [ ] Configure build command `npm run build`; use the standard Wrangler deployment from `wrangler.toml`.
 - [ ] Confirm preview and production environments use separate Worker secret bindings.
+- [ ] Run `npm run db:create`, review the generated `ROUTES_DB` binding, and apply `npm run db:migrate:remote` before deployment.
+- [ ] Confirm the five-minute Cron activates the first complete BusRoutes generation without crossing 50 subrequests.
+- [ ] Smoke-test D1-backed routes for services 56 and 36 after the initial catalogue warm-up.
 
 ## Secrets and provider verification
 

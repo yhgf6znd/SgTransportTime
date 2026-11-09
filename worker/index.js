@@ -1,4 +1,5 @@
 import { errorResponse, ProviderError } from '../functions/_lib/http.js';
+import { syncBusRouteCatalogue } from '../functions/_lib/bus-route-catalogue.js';
 import { onRequestGet as busArrivals } from '../functions/api/bus/arrivals.js';
 import { onRequestGet as busRoutes } from '../functions/api/bus/routes.js';
 import { onRequestGet as busServices } from '../functions/api/bus/services.js';
@@ -74,4 +75,8 @@ export async function handleRequest(request, env, executionContext = {}) {
   }
 }
 
-export default { fetch: handleRequest };
+export async function handleScheduled(_controller, env) {
+  return syncBusRouteCatalogue(env);
+}
+
+export default { fetch: handleRequest, scheduled: handleScheduled };

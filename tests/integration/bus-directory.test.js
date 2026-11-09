@@ -4,6 +4,7 @@ import { onRequestGet as busServices } from '../../functions/api/bus/services.js
 import { onRequestGet as busRoutes } from '../../functions/api/bus/routes.js';
 import { clearBusCache } from '../../functions/_lib/lta.js';
 import { staticTransportCacheSeconds } from '../../functions/_lib/cache.js';
+import { routeDatabase } from '../helpers/route-db.js';
 
 function assertEndOfDayCache(response) {
   const cacheControl = response.headers.get('Cache-Control');
@@ -46,7 +47,13 @@ test('bus routes groups ordered stops and exposes scheduled first/last times', a
     { match: 'BusStops', body: { value: [{ BusStopCode: '01012', Description: 'Origin', RoadName: 'Example Road', Latitude: '1.3', Longitude: '103.8' }, { BusStopCode: '02020', Description: 'Destination', RoadName: 'Other Road', Latitude: '1.31', Longitude: '103.81' }] } },
   ]);
   try {
-    const response = await busRoutes({ request: new Request('https://example.test/api/bus/routes?service=36'), env: { LTA_ACCOUNT_KEY: 'test' } });
+    const routeRows = [
+      { ServiceNo: '67', Operator: 'SMRT', Direction: '1', StopSequence: '1', BusStopCode: '99999', Distance: '0' },
+      { ServiceNo: '36', Operator: 'SBST', Direction: '1', StopSequence: '1', BusStopCode: '01012', Distance: '0', WD_FirstBus: '0530', WD_LastBus: '2330', SAT_FirstBus: '0545', SAT_LastBus: '2330', SUN_FirstBus: '0600', SUN_LastBus: '2300' },
+      { ServiceNo: '36', Operator: 'SBST', Direction: '1', StopSequence: '2', BusStopCode: '02020', Distance: '1.2', WD_FirstBus: '0535', WD_LastBus: '2335' },
+    ];
+    const env = { LTA_ACCOUNT_KEY: 'test', ROUTES_DB: routeDatabase(routeRows) };
+    const response = await busRoutes({ request: new Request('https://example.test/api/bus/routes?service=36'), env });
     const body = await response.json();
     assert.equal(response.status, 200); assertEndOfDayCache(response); assert.equal(body.data.directions.length, 1); assert.equal(body.data.directions[0].stops[0].stopName, 'Origin'); assert.equal(body.data.directions[0].stops[1].stopSequence, 2); assert.equal(body.data.directions[0].stops[0].firstLast.weekday.first, '0530');
   } finally { globalThis.fetch = originalFetch; clearBusCache(); }
