@@ -2,14 +2,14 @@ import { strFromU8, unzipSync } from 'fflate';
 import { decodeGtfsRealtime, csvRows } from './gtfs.js';
 import { ltaFeedBytes, ltaJson } from './lta.js';
 import { ProviderError } from './http.js';
-import { STATIC_CACHE_SECONDS } from './cache.js';
+import { staticTransportCacheSeconds } from './cache.js';
 
 const SINGAPORE_OFFSET_MS = 8 * 60 * 60 * 1000;
 const SERVICE_DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-const SCHEDULE_CACHE_MS = STATIC_CACHE_SECONDS * 1000;
+const staticCacheExpiresAt = (createdAt) => createdAt + staticTransportCacheSeconds(createdAt) * 1000;
 const TRAIN_FILES = ['stops.txt', 'trips.txt', 'stop_times.txt', 'calendar.txt', 'calendar_dates.txt', 'routes.txt'];
 let stationCache = null;
-let stationCacheAt = 0;
+let stationCacheExpiresAt = 0;
 let stationCacheStale = false;
 const scheduleCache = new Map();
 const scheduleCacheAt = new Map();
@@ -182,15 +182,15 @@ export function scheduledTrainArrivals(schedule, station, nowMs = Date.now(), ho
 
 async function loadStationDirectory(env) {
   const now = Date.now();
-  if (!stationCache || now - stationCacheAt > SCHEDULE_CACHE_MS) {
+  if (!stationCache || now >= stationCacheExpiresAt) {
     const previousStations = stationCache;
     try {
-      const bytes = await ltaFeedBytes('GTFSScheduleTrain', env, 12000, STATIC_CACHE_SECONDS);
+      const bytes = await ltaFeedBytes('GTFSScheduleTrain', env, 12000, staticTransportCacheSeconds(now));
       const files = extractGtfsFiles(bytes, ['stops.txt']);
       const stations = stationRows(csvRows(findZipText(files, 'stops.txt')));
       if (!stations.length) throw new ProviderError('UPSTREAM_INVALID', 'The LTA train schedule contained no station records.', 502);
       stationCache = stations;
-      stationCacheAt = now;
+      stationCacheExpiresAt = staticCacheExpiresAt(now);
       stationCacheStale = false;
     } catch (error) {
       if (!previousStations) throw error;
@@ -220,7 +220,7 @@ function cachedTrainSchedule(stationCode, now) {
   return {
     schedule,
     station,
-    fresh: now - (scheduleCacheAt.get(cacheKey) ?? 0) <= SCHEDULE_CACHE_MS,
+    fresh: now <= staticCacheExpiresAt(scheduleCacheAt.get(cacheKey) ?? 0),
   };
 }
 
@@ -240,7 +240,7 @@ async function loadTrainSchedules(env, stationId) {
   }
 
   try {
-    const bytes = await ltaFeedBytes('GTFSScheduleTrain', env, 12000, STATIC_CACHE_SECONDS);
+    const bytes = await ltaFeedBytes('GTFSScheduleTrain', env, 12000, staticTransportCacheSeconds(now));
     const files = extractGtfsFiles(bytes, TRAIN_FILES);
     const stops = csvRows(findZipText(files, 'stops.txt'));
     const stations = stationRows(stops);
@@ -371,7 +371,7 @@ export function trainScheduleStatus() { return stationCacheStale ? 'stale' : 'sc
 
 export function clearTrainCache() {
   stationCache = null;
-  stationCacheAt = 0;
+  stationCacheExpiresAt = 0;
   stationCacheStale = false;
   scheduleCache.clear();
   scheduleCacheAt.clear();

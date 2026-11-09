@@ -11,7 +11,7 @@
 - [x] M8: LTA bus directory and route parity improvements (service metadata, ordered routes, schedules, documented arrival telemetry)
 - [x] M9: configurable 15-second polling increments with a 30-second default
 Service API review checkpoint (2026-11-08): service-wide live fan-out uses uncached BusArrival calls with bounded concurrency; exact-coordinate location deduplication is covered by fixtures. Live credential behavior remains pending.
-- [x] M10: four-hour Cloudflare Workers cache for static transport datasets
+- [x] M10: scheduled Cloudflare Workers cache for static transport datasets
 - [x] M11: canonical train station-code lookup and single-code interchange expansion
 - [x] M12: live bus service-wide arrivals, service locations, and single-service/single-stop API coverage
 
@@ -89,5 +89,9 @@ Backend checkpoint (2026-11-09): the previous skip ceiling excluded services aft
 
 
 - [x] M31: cache complete static LTA catalogues with stale fallback
+
+- [x] M32: expire static transport caches at the next 04:00 Singapore rollover
+
+Backend checkpoint (2026-11-09): BusRoutes, BusServices, BusStops, and train schedules use a calculated TTL to the next 04:00 Singapore rollover for catalogue entries, API responses, and in-memory indexes; the seven-day last-known-good fallback remains available for transient provider failures.
 
 Backend checkpoint (2026-11-09): paginated BusRoutes and BusServices data is assembled and cached as a complete catalogue, with a last-known-good static fallback and service-scoped cold-cache fallback so transient provider failures do not erase scheduled route views.

@@ -1,14 +1,13 @@
 import { fetchWithTimeout, ProviderError, readJson } from './http.js';
-import { matchWorkerCache, putWorkerCache, STATIC_CACHE_SECONDS } from './cache.js';
+import { matchWorkerCache, putWorkerCache, staticTransportCacheSeconds } from './cache.js';
 import { normalizeService, normalizeStopCode } from '../../src/lib/transit.js';
 
 export const LTA_BASE = 'https://datamall2.mytransport.sg/ltaodataservice/';
 const MAX_LTA_SKIP = 100_000;
-const BUS_STOP_CACHE_MS = STATIC_CACHE_SECONDS * 1000;
 let busStopCache = null;
-let busStopCacheAt = 0;
+let busStopCacheExpiresAt = 0;
 let busRouteCache = null;
-let busRouteCacheAt = 0;
+let busRouteCacheExpiresAt = 0;
 
 function requireKey(env) {
   if (!env?.LTA_ACCOUNT_KEY) throw new ProviderError('CONFIGURATION', 'Live LTA data is not configured for this deployment.', 503);
@@ -185,10 +184,11 @@ export function busStopRecord(raw) {
 
 export async function busStops(env) {
   const now = Date.now();
-  if (busStopCache && now - busStopCacheAt <= BUS_STOP_CACHE_MS) return busStopCache;
-  const rows = await pagedLta('BusStops', env, 500, STATIC_CACHE_SECONDS);
+  if (busStopCache && now < busStopCacheExpiresAt) return busStopCache;
+  const cacheSeconds = staticTransportCacheSeconds(now);
+  const rows = await pagedLta('BusStops', env, 500, cacheSeconds);
   busStopCache = rows.map(busStopRecord).filter(Boolean);
-  busStopCacheAt = now;
+  busStopCacheExpiresAt = now + cacheSeconds * 1000;
   return busStopCache;
 }
 
@@ -205,16 +205,17 @@ export function busRouteRecord(raw) {
 
 export async function busRoutes(env) {
   const now = Date.now();
-  if (busRouteCache && now - busRouteCacheAt <= BUS_STOP_CACHE_MS) return busRouteCache;
-  const rows = await pagedLta("BusRoutes", env, 500, STATIC_CACHE_SECONDS);
+  if (busRouteCache && now < busRouteCacheExpiresAt) return busRouteCache;
+  const cacheSeconds = staticTransportCacheSeconds(now);
+  const rows = await pagedLta("BusRoutes", env, 500, cacheSeconds);
   busRouteCache = rows.map(busRouteRecord).filter(Boolean);
-  busRouteCacheAt = now;
+  busRouteCacheExpiresAt = now + cacheSeconds * 1000;
   return busRouteCache;
 }
 
 export function clearBusCache() {
   busStopCache = null;
-  busStopCacheAt = 0;
+  busStopCacheExpiresAt = 0;
   busRouteCache = null;
-  busRouteCacheAt = 0;
+  busRouteCacheExpiresAt = 0;
 }

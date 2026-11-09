@@ -1,5 +1,17 @@
 export const STATIC_CACHE_SECONDS = 4 * 60 * 60;
 
+export function staticTransportCacheSeconds(now = Date.now()) {
+  const singaporeOffsetMs = 8 * 60 * 60 * 1000;
+  const singaporeNow = new Date(now + singaporeOffsetMs);
+  const nextRefresh = Date.UTC(
+    singaporeNow.getUTCFullYear(),
+    singaporeNow.getUTCMonth(),
+    singaporeNow.getUTCDate() + (singaporeNow.getUTCHours() < 4 ? 0 : 1),
+    4,
+  );
+  return Math.max(1, Math.ceil((nextRefresh - (now + singaporeOffsetMs)) / 1000));
+}
+
 function cacheStore() {
   return globalThis.caches?.default ?? null;
 }

@@ -1,7 +1,7 @@
 import { normalizeService } from '../../../src/lib/transit.js';
 import { json, ProviderError, queryLength, run } from '../../_lib/http.js';
 import { busStops, ltaServiceRows } from '../../_lib/lta.js';
-import { STATIC_CACHE_SECONDS } from '../../_lib/cache.js';
+import { staticTransportCacheSeconds } from '../../_lib/cache.js';
 
 function serviceRecord(raw, names) {
   const serviceNo = normalizeService(raw?.ServiceNo);
@@ -31,8 +31,9 @@ export const onRequestGet = run(async ({ request, env }) => {
   const url = new URL(request.url);
   const query = normalizeService(queryLength(url.searchParams.get('search'), 1, 5));
   if (!query) throw new ProviderError('INVALID_INPUT', 'Enter a valid bus service number.', 400);
+  const cacheSeconds = staticTransportCacheSeconds();
   const limit = Math.min(20, Math.max(1, Number(url.searchParams.get('limit') ?? 12) || 12));
-  const payload = await ltaServiceRows('BusServices', query, env, 500, STATIC_CACHE_SECONDS);
+  const payload = await ltaServiceRows('BusServices', query, env, 500, cacheSeconds);
   let stops = [];
   try { stops = await busStops(env); } catch { /* Service metadata remains useful without stop names. */ }
   const names = new Map(stops.map((stop) => [stop.code, stop]));
@@ -41,5 +42,5 @@ export const onRequestGet = run(async ({ request, env }) => {
     .map((item) => serviceRecord(item, names))
     .filter(Boolean)
     .slice(0, limit);
-  return json(services, { source: 'LTA DataMall BusServices', status: 'scheduled', fetchedAt: new Date().toISOString(), cached: true }, 200, STATIC_CACHE_SECONDS);
+  return json(services, { source: 'LTA DataMall BusServices', status: 'scheduled', fetchedAt: new Date().toISOString(), cached: true }, 200, cacheSeconds);
 });

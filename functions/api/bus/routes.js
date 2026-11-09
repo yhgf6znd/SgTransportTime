@@ -1,7 +1,7 @@
 import { normalizeService } from '../../../src/lib/transit.js';
 import { json, ProviderError, queryLength, run } from '../../_lib/http.js';
 import { busStops, ltaServiceRows } from '../../_lib/lta.js';
-import { STATIC_CACHE_SECONDS } from '../../_lib/cache.js';
+import { staticTransportCacheSeconds } from '../../_lib/cache.js';
 
 function routeRecord(raw, names) {
   const code = String(raw?.BusStopCode ?? '').trim();
@@ -30,7 +30,8 @@ function routeRecord(raw, names) {
 export const onRequestGet = run(async ({ request, env }) => {
   const service = normalizeService(queryLength(new URL(request.url).searchParams.get('service'), 1, 5));
   if (!service) throw new ProviderError('INVALID_INPUT', 'Enter a valid bus service number.', 400);
-  const payload = await ltaServiceRows('BusRoutes', service, env, 500, STATIC_CACHE_SECONDS);
+  const cacheSeconds = staticTransportCacheSeconds();
+  const payload = await ltaServiceRows('BusRoutes', service, env, 500, cacheSeconds);
   let stops = [];
   try { stops = await busStops(env); } catch { /* Route data remains useful without names/coordinates. */ }
   const names = new Map(stops.map((stop) => [stop.code, stop]));
@@ -40,5 +41,5 @@ export const onRequestGet = run(async ({ request, env }) => {
     operator: rows.find((row) => row.direction === direction)?.operator ?? null,
     stops: rows.filter((row) => row.direction === direction).sort((a, b) => a.stopSequence - b.stopSequence),
   }));
-  return json({ service, directions }, { source: 'LTA DataMall BusRoutes', status: 'scheduled', fetchedAt: new Date().toISOString(), cached: true }, 200, STATIC_CACHE_SECONDS);
+  return json({ service, directions }, { source: 'LTA DataMall BusRoutes', status: 'scheduled', fetchedAt: new Date().toISOString(), cached: true }, 200, cacheSeconds);
 });
