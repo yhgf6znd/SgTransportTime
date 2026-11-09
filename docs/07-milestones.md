@@ -69,3 +69,7 @@ Frontend checkpoint (2026-11-09): route selection is covered by a regression fix
 - [x] M26: label train direction cards with the feed destination/final station instead of numeric direction IDs
 
 Frontend checkpoint (2026-11-09): MRT/LRT cards use destinations such as Joo Koon or Tuas Link and never show Direction 0/1 as the user-facing label.
+
+- [x] M27: label bus routes by final stop and remove numeric direction labels from all transport cards
+
+Frontend checkpoint (2026-11-09): bus route cards use final stop names/codes, while MRT/LRT cards use feed destinations; numeric direction IDs remain internal only.

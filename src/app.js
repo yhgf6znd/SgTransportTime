@@ -313,7 +313,7 @@ function renderServiceInfo(service) {
   const card = node('article', undefined, 'card');
   const head = node('div', undefined, 'card-head');
   const title = node('div');
-  title.append(node('h2', `Service ${service.serviceNo}`, 'card-title'), node('p', [service.operator, service.category, service.direction ? `Direction ${service.direction}` : null].filter(Boolean).join(' · '), 'card-sub'));
+  title.append(node('h2', `Service ${service.serviceNo}`, 'card-title'), node('p', [service.operator, service.category, service.destinationName ? `To ${service.destinationName}` : null].filter(Boolean).join(' · '), 'card-sub'));
   head.append(title, chip('scheduled'));
   card.append(head);
   const endpoints = node('div', undefined, 'details-grid');
@@ -338,13 +338,13 @@ async function showBusService(service) {
   state.current = null;
   clearTimeout(state.timer);
   $("#refresh-button").hidden = true;
-  showDataLoading("Loading the selected direction route…");
+  showDataLoading("Loading the selected route…");
   setStatus("Loading scheduled information for service " + service.serviceNo + "…");
   try {
     const body = await api("/api/bus/routes?service=" + encodeURIComponent(service.serviceNo));
     renderServiceInfo(service);
     appendRoute(body.data, service);
-    setStatus("Scheduled route for service " + service.serviceNo + (service.direction ? " · Direction " + service.direction : "") + " · LTA DataMall.");
+    setStatus("Scheduled route for service " + service.serviceNo + (service.destinationName ? " · To " + service.destinationName : "") + " · LTA DataMall.");
   } catch (error) {
     renderServiceInfo(service);
     setStatus("Scheduled information for service " + service.serviceNo + " · Route unavailable: " + apiError(error));
@@ -365,6 +365,12 @@ function routeDirections(data, selectedService) {
   return selectBusRouteDirections(data.directions, selectedService);
 }
 
+function finalStopLabel(direction) {
+  const stop = direction?.stops?.[direction.stops.length - 1];
+  if (!stop) return "Final stop not provided";
+  return stop.stopName ? "To " + stop.stopName : "To stop " + stop.busStopCode;
+}
+
 function openRouteStop(service, stop) {
   const input = $("#global-query");
   input.value = service + " " + stop.busStopCode;
@@ -378,12 +384,12 @@ function openRouteStop(service, stop) {
 function appendRoute(data, selectedService = null) {
   const directions = routeDirections(data, selectedService);
   const heading = node("div", undefined, "card-head");
-  const directionLabel = selectedService?.direction && directions.length === 1 ? " · Direction " + directions[0].direction : "";
+  const directionLabel = selectedService && directions.length === 1 ? " · " + finalStopLabel(directions[0]) : "";
   heading.append(node("h2", "Service " + data.service + " route" + directionLabel, "card-title"), chip("scheduled"));
   results.append(heading);
   for (const direction of directions) {
     const card = node("article", undefined, "card");
-    card.append(node("h3", "Direction " + direction.direction + (direction.operator ? " · " + direction.operator : ""), "card-title"));
+    card.append(node("h3", finalStopLabel(direction) + (direction.operator ? " · " + direction.operator : ""), "card-title"));
     const first = direction.stops[0];
     card.append(node("p", "Published first and last bus times", "card-sub"), scheduleTable(first?.firstLast));
     const list = node("ol", undefined, "route-list");
@@ -405,9 +411,9 @@ function appendRoute(data, selectedService = null) {
   if (!directions.length) results.append(node("div", "No route stops were returned for this service.", "empty"));
 }
 
-function renderRoute(data, selectedDirection = null) {
+function renderRoute(data, selectedService = null) {
   clearResults();
-  appendRoute(data, selectedDirection);
+  appendRoute(data, selectedService);
 }
 
 async function showBusRoute(service) {
