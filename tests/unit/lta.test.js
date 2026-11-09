@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ltaFeedBytes, ltaJson } from '../../functions/_lib/lta.js';
+import { ltaFeedBytes, ltaJson, pagedLta } from '../../functions/_lib/lta.js';
 
 test('reports LTA authentication failures as configuration errors instead of invalid JSON', async () => {
   const originalFetch = globalThis.fetch;
@@ -55,4 +55,21 @@ test('accepts an XML/Atom LTA train feed link', async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+
+test("paginates beyond the old route-catalogue cutoff", async () => {
+  const originalFetch = globalThis.fetch;
+  const skips = [];
+  globalThis.fetch = async (url) => {
+    const skip = Number(new URL(url).searchParams.get(String.fromCharCode(36) + "skip"));
+    skips.push(skip);
+    const value = skip < 10_500 ? Array.from({ length: 500 }, (_, index) => ({ index })) : [{ ServiceNo: "999", StopSequence: "1", BusStopCode: "01012" }];
+    return new Response(JSON.stringify({ value }), { status: 200 });
+  };
+  try {
+    const rows = await pagedLta("BusRoutes", { LTA_ACCOUNT_KEY: "test" }, 500);
+    assert.equal(rows.at(-1).ServiceNo, "999");
+    assert.equal(skips.at(-1), 10_500);
+  } finally { globalThis.fetch = originalFetch; }
 });

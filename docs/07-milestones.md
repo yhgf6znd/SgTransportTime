@@ -81,3 +81,8 @@ Backend checkpoint (2026-11-09): BusServices and BusRoutes are fetched as pagina
 - [x] M29: limit MRT arrivals and make transport refreshes data-granular
 
 Frontend checkpoint (2026-11-09): MRT/LRT cards show the next three arrivals per line and direction; automatic MRT polling watches changed disruption alerts only, while bus polling replaces only arrival cards.
+
+
+- [x] M30: scan the complete paginated bus route catalogue
+
+Backend checkpoint (2026-11-09): the previous skip ceiling excluded services after the first 10,000 rows; route pagination now covers the full current catalogue with a bounded 100,000-row safety limit.

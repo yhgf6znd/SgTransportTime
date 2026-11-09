@@ -3,6 +3,7 @@ import { matchWorkerCache, putWorkerCache, STATIC_CACHE_SECONDS } from './cache.
 import { normalizeService, normalizeStopCode } from '../../src/lib/transit.js';
 
 export const LTA_BASE = 'https://datamall2.mytransport.sg/ltaodataservice/';
+const MAX_LTA_SKIP = 100_000;
 const BUS_STOP_CACHE_MS = STATIC_CACHE_SECONDS * 1000;
 let busStopCache = null;
 let busStopCacheAt = 0;
@@ -108,7 +109,7 @@ export async function ltaFeedBytes(dataset, env, timeoutMs = 12000, cacheTtlSeco
 
 export async function pagedLta(dataset, env, pageSize = 500, cacheTtlSeconds = 0) {
   const rows = [];
-  for (let skip = 0; skip <= 10000; skip += pageSize) {
+  for (let skip = 0; skip <= MAX_LTA_SKIP; skip += pageSize) {
     const page = await ltaJson(`${dataset}?$skip=${skip}`, env, 7000, cacheTtlSeconds);
     const batch = Array.isArray(page?.value) ? page.value : [];
     rows.push(...batch);
