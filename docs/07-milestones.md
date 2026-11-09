@@ -57,3 +57,7 @@ Frontend checkpoint (2026-11-09): refresh requests replace only the arrival resu
 - [x] M23: display side-view bus type icons alongside vehicle labels
 
 Frontend checkpoint (2026-11-09): bus type indicators use accessible inline SVG silhouettes for single-deck, double-deck, and bendy buses.
+
+- [x] M24: show the selected bus-service direction route immediately and open service arrivals from route stops
+
+Frontend checkpoint (2026-11-09): service selection loads the matching ordered direction; route-stop buttons open the filtered live arrival detail for that service and stop.

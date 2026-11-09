@@ -327,20 +327,28 @@ function renderServiceInfo(service) {
     frequencies.append(item);
   }
   card.append(node('h3', 'Dispatch frequency', 'section-title'), frequencies);
-  const routeButton = node('button', 'View route and first/last bus times', 'secondary-button');
+  const routeButton = node('button', 'View all directions', 'secondary-button');
   routeButton.type = 'button';
   routeButton.addEventListener('click', () => showBusRoute(service.serviceNo));
-  card.append(routeButton, node('p', 'Select a bus stop to view live arrivals for this service.', 'card-sub'));
+  card.append(routeButton, node('p', 'Select a bus stop in the route below to view live arrivals for this service.', 'card-sub'));
   results.append(card);
 }
 
 async function showBusService(service) {
   state.current = null;
-  setStatus(`Loading scheduled information for service ${service.serviceNo}…`);
+  clearTimeout(state.timer);
+  $("#refresh-button").hidden = true;
+  showDataLoading("Loading the selected direction route…");
+  setStatus("Loading scheduled information for service " + service.serviceNo + "…");
   try {
+    const body = await api("/api/bus/routes?service=" + encodeURIComponent(service.serviceNo));
     renderServiceInfo(service);
-    setStatus(`Scheduled information for service ${service.serviceNo} · LTA DataMall.`);
-  } catch (error) { clearResults(); setStatus(apiError(error)); }
+    appendRoute(body.data, service.direction);
+    setStatus("Scheduled route for service " + service.serviceNo + (service.direction ? " · Direction " + service.direction : "") + " · LTA DataMall.");
+  } catch (error) {
+    renderServiceInfo(service);
+    setStatus("Scheduled information for service " + service.serviceNo + " · Route unavailable: " + apiError(error));
+  }
 }
 
 function scheduleTable(firstLast) {
@@ -353,39 +361,66 @@ function scheduleTable(firstLast) {
   return table;
 }
 
-function renderRoute(data) {
-  clearResults();
-  const heading = node('div', undefined, 'card-head');
-  heading.append(node('h2', `Service ${data.service} route`, 'card-title'), chip('scheduled'));
+function routeDirections(data, selectedDirection) {
+  if (!selectedDirection) return data.directions;
+  const selected = data.directions.filter((direction) => String(direction.direction) === String(selectedDirection));
+  return selected.length ? selected : data.directions;
+}
+
+function openRouteStop(service, stop) {
+  const input = $("#global-query");
+  input.value = service + " " + stop.busStopCode;
+  state.searchQuery = "";
+  state.searchRecords = [];
+  $("#search-suggestions").replaceChildren();
+  results.scrollIntoView({ behavior: "smooth", block: "start" });
+  return refreshBus(stop.busStopCode, service);
+}
+
+function appendRoute(data, selectedDirection = null) {
+  const directions = routeDirections(data, selectedDirection);
+  const heading = node("div", undefined, "card-head");
+  const directionLabel = selectedDirection && directions.length === 1 ? " · Direction " + directions[0].direction : "";
+  heading.append(node("h2", "Service " + data.service + " route" + directionLabel, "card-title"), chip("scheduled"));
   results.append(heading);
-  for (const direction of data.directions) {
-    const card = node('article', undefined, 'card');
-    card.append(node('h3', `Direction ${direction.direction}${direction.operator ? ` · ${direction.operator}` : ''}`, 'card-title'));
+  for (const direction of directions) {
+    const card = node("article", undefined, "card");
+    card.append(node("h3", "Direction " + direction.direction + (direction.operator ? " · " + direction.operator : ""), "card-title"));
     const first = direction.stops[0];
-    card.append(node('p', 'Published first and last bus times', 'card-sub'), scheduleTable(first?.firstLast));
-    const list = node('ol', undefined, 'route-list');
+    card.append(node("p", "Published first and last bus times", "card-sub"), scheduleTable(first?.firstLast));
+    const list = node("ol", undefined, "route-list");
     for (const stop of direction.stops) {
-      const item = node('li', undefined, 'route-stop');
-      const copy = node('div');
-      copy.append(node('strong', `${stop.stopName ?? 'Bus stop'} · ${stop.busStopCode}`), node('span', [stop.road, stop.distanceKm !== null ? `${stop.distanceKm.toFixed(1)} km` : null].filter(Boolean).join(' · '), 'card-sub'));
-      item.append(copy);
-      const link = mapLink('Map', stop.latitude, stop.longitude);
+      const item = node("li", undefined, "route-stop");
+      const stopButton = node("button", undefined, "route-stop-button");
+      stopButton.type = "button";
+      stopButton.setAttribute("aria-label", "View service " + data.service + " arrivals at " + (stop.stopName ?? "bus stop") + " " + stop.busStopCode);
+      stopButton.append(node("strong", (stop.stopName ?? "Bus stop") + " · " + stop.busStopCode), node("span", [stop.road, stop.distanceKm !== null ? stop.distanceKm.toFixed(1) + " km" : null].filter(Boolean).join(" · "), "card-sub"));
+      stopButton.addEventListener("click", () => openRouteStop(data.service, stop));
+      item.append(stopButton);
+      const link = mapLink("Map", stop.latitude, stop.longitude);
       if (link) item.append(link);
       list.append(item);
     }
     card.append(list);
     results.append(card);
   }
-  if (!data.directions.length) results.append(node('div', 'No route stops were returned for this service.', 'empty'));
+  if (!directions.length) results.append(node("div", "No route stops were returned for this service.", "empty"));
+}
+
+function renderRoute(data, selectedDirection = null) {
+  clearResults();
+  appendRoute(data, selectedDirection);
 }
 
 async function showBusRoute(service) {
-  clearResults();
-  setStatus(`Loading route for service ${service}…`);
+  clearTimeout(state.timer);
+  $("#refresh-button").hidden = true;
+  showDataLoading("Loading route for service " + service + "…");
+  setStatus("Loading route for service " + service + "…");
   try {
-    const body = await api(`/api/bus/routes?service=${encodeURIComponent(service)}`);
+    const body = await api("/api/bus/routes?service=" + encodeURIComponent(service));
     renderRoute(body.data);
-    setStatus(`Scheduled route for service ${service} · LTA DataMall.`);
+    setStatus("Scheduled route for service " + service + " · LTA DataMall.");
   } catch (error) { clearResults(); setStatus(apiError(error)); }
 }
 
