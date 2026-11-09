@@ -65,3 +65,7 @@ Frontend checkpoint (2026-11-09): service selection loads the matching ordered d
 - [x] M25: match selected bus-service routes by endpoint stop codes before direction fallback
 
 Frontend checkpoint (2026-11-09): route selection is covered by a regression fixture where endpoint identity overrides a conflicting provider direction label.
+
+- [x] M26: label train direction cards with the feed destination/final station instead of numeric direction IDs
+
+Frontend checkpoint (2026-11-09): MRT/LRT cards use destinations such as Joo Koon or Tuas Link and never show Direction 0/1 as the user-facing label.

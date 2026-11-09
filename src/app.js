@@ -193,11 +193,11 @@ function renderBus(data, meta) {
 function trainDirectionCards(container, arrivals) {
   for (const groupArrivals of groupTrainArrivals(arrivals)) {
     const direction = node("div", undefined, "card train-direction");
-    const directionId = groupArrivals.find((arrival) => arrival.directionId)?.directionId;
     const routes = [...new Set(groupArrivals.map((arrival) => arrival.route).filter(Boolean))];
     const destinations = [...new Set(groupArrivals.map((arrival) => arrival.destination).filter(Boolean))];
     const lineLabel = routes.length ? "Line " + routes.join(" / ") : null;
-    const label = [lineLabel, directionId ? "Direction " + directionId : null].filter(Boolean).join(" · ") || "Direction not provided";
+    const destinationLabel = destinations.length ? destinations.join(" / ") : "Final station not provided";
+    const label = [lineLabel, destinationLabel].filter(Boolean).join(" · ") || "Final station not provided";
     const subtitle = destinations.length > 1 ? "Multiple destinations shown beside each arrival." : destinations.length ? "Destination shown beside each arrival." : "The feed did not provide a destination for these arrivals.";
     const directionHead = node("div", undefined, "card-head");
     const directionTitle = node("div");
