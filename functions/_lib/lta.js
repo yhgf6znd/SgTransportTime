@@ -108,14 +108,65 @@ export async function ltaFeedBytes(dataset, env, timeoutMs = 12000, cacheTtlSeco
 }
 
 export async function pagedLta(dataset, env, pageSize = 500, cacheTtlSeconds = 0) {
+  const catalogKey = dataset + "?pageSize=" + pageSize;
+  if (cacheTtlSeconds > 0) {
+    const cached = await matchWorkerCache("lta-catalog", catalogKey);
+    if (cached) {
+      try {
+        const rows = await cached.json();
+        if (Array.isArray(rows)) return rows;
+      } catch { /* Rebuild a corrupt catalogue cache entry. */ }
+    }
+  }
+
   const rows = [];
-  for (let skip = 0; skip <= MAX_LTA_SKIP; skip += pageSize) {
-    const page = await ltaJson(`${dataset}?$skip=${skip}`, env, 7000, cacheTtlSeconds);
-    const batch = Array.isArray(page?.value) ? page.value : [];
-    rows.push(...batch);
-    if (batch.length < pageSize) break;
+  let complete = false;
+  try {
+    for (let skip = 0; skip <= MAX_LTA_SKIP; skip += pageSize) {
+      const page = await ltaJson(dataset + "?" + String.fromCharCode(36) + "skip=" + skip, env, 7000, cacheTtlSeconds);
+      const batch = Array.isArray(page?.value) ? page.value : [];
+      rows.push(...batch);
+      if (batch.length < pageSize) { complete = true; break; }
+    }
+    if (!complete) throw new ProviderError("UPSTREAM_INVALID", "LTA returned an incomplete static catalogue.", 502);
+  } catch (error) {
+    if (cacheTtlSeconds > 0) {
+      const stale = await matchWorkerCache("lta-catalog-stale", catalogKey);
+      if (stale) {
+        try {
+          const staleRows = await stale.json();
+          if (Array.isArray(staleRows)) return staleRows;
+        } catch { /* Ignore a corrupt stale catalogue and preserve the provider error. */ }
+      }
+    }
+    throw error;
+  }
+
+  if (cacheTtlSeconds > 0) {
+    const response = () => new Response(JSON.stringify(rows), { headers: { "Content-Type": "application/json" } });
+    await putWorkerCache("lta-catalog", catalogKey, response(), cacheTtlSeconds);
+    await putWorkerCache("lta-catalog-stale", catalogKey, response(), 7 * 24 * 60 * 60);
   }
   return rows;
+}
+
+export async function ltaServiceRows(dataset, service, env, pageSize = 500, cacheTtlSeconds = 0) {
+  let pagingError = null;
+  try {
+    const rows = await pagedLta(dataset, env, pageSize, cacheTtlSeconds);
+    const matches = rows.filter((row) => normalizeService(row?.ServiceNo) === service);
+    if (matches.length) return matches;
+  } catch (error) {
+    pagingError = error;
+  }
+  try {
+    const payload = await ltaJson(dataset + "?ServiceNo=" + encodeURIComponent(service), env, 7000, cacheTtlSeconds);
+    const matches = (Array.isArray(payload?.value) ? payload.value : [])
+      .filter((row) => normalizeService(row?.ServiceNo) === service);
+    if (matches.length) return matches;
+  } catch { /* Preserve the original paginated error when both static paths fail. */ }
+  if (pagingError) throw pagingError;
+  return [];
 }
 
 export function busStopRecord(raw) {

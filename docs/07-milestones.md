@@ -86,3 +86,8 @@ Frontend checkpoint (2026-11-09): MRT/LRT cards show the next three arrivals per
 - [x] M30: scan the complete paginated bus route catalogue
 
 Backend checkpoint (2026-11-09): the previous skip ceiling excluded services after the first 10,000 rows; route pagination now covers the full current catalogue with a bounded 100,000-row safety limit.
+
+
+- [x] M31: cache complete static LTA catalogues with stale fallback
+
+Backend checkpoint (2026-11-09): paginated BusRoutes and BusServices data is assembled and cached as a complete catalogue, with a last-known-good static fallback and service-scoped cold-cache fallback so transient provider failures do not erase scheduled route views.

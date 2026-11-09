@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ltaFeedBytes, ltaJson, pagedLta } from '../../functions/_lib/lta.js';
+import { ltaFeedBytes, ltaJson, ltaServiceRows, pagedLta } from '../../functions/_lib/lta.js';
 
 test('reports LTA authentication failures as configuration errors instead of invalid JSON', async () => {
   const originalFetch = globalThis.fetch;
@@ -71,5 +71,18 @@ test("paginates beyond the old route-catalogue cutoff", async () => {
     const rows = await pagedLta("BusRoutes", { LTA_ACCOUNT_KEY: "test" }, 500);
     assert.equal(rows.at(-1).ServiceNo, "999");
     assert.equal(skips.at(-1), 10_500);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("falls back to a service-scoped static response when catalogue pagination fails", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const value = new URL(url);
+    if (value.searchParams.has(String.fromCharCode(36) + "skip")) return new Response("", { status: 503 });
+    return new Response(JSON.stringify({ value: [{ ServiceNo: "56", StopSequence: "1", BusStopCode: "01012" }] }), { status: 200 });
+  };
+  try {
+    const rows = await ltaServiceRows("BusRoutes", "56", { LTA_ACCOUNT_KEY: "test" });
+    assert.equal(rows[0].ServiceNo, "56");
   } finally { globalThis.fetch = originalFetch; }
 });
