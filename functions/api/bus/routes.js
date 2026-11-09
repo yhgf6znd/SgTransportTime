@@ -1,6 +1,6 @@
 import { normalizeService } from '../../../src/lib/transit.js';
 import { json, ProviderError, queryLength, run } from '../../_lib/http.js';
-import { busStops, ltaJson } from '../../_lib/lta.js';
+import { busStops, pagedLta } from '../../_lib/lta.js';
 import { STATIC_CACHE_SECONDS } from '../../_lib/cache.js';
 
 function routeRecord(raw, names) {
@@ -30,11 +30,11 @@ function routeRecord(raw, names) {
 export const onRequestGet = run(async ({ request, env }) => {
   const service = normalizeService(queryLength(new URL(request.url).searchParams.get('service'), 1, 5));
   if (!service) throw new ProviderError('INVALID_INPUT', 'Enter a valid bus service number.', 400);
-  const payload = await ltaJson(`BusRoutes?ServiceNo=${encodeURIComponent(service)}`, env, 7000, STATIC_CACHE_SECONDS);
+  const payload = await pagedLta('BusRoutes', env, 500, STATIC_CACHE_SECONDS);
   let stops = [];
   try { stops = await busStops(env); } catch { /* Route data remains useful without names/coordinates. */ }
   const names = new Map(stops.map((stop) => [stop.code, stop]));
-  const rows = (Array.isArray(payload?.value) ? payload.value : []).map((row) => routeRecord(row, names)).filter(Boolean);
+  const rows = payload.filter((row) => normalizeService(row?.ServiceNo) === service).map((row) => routeRecord(row, names)).filter(Boolean);
   const directions = [...new Set(rows.map((row) => row.direction))].map((direction) => ({
     direction,
     operator: rows.find((row) => row.direction === direction)?.operator ?? null,

@@ -1,6 +1,6 @@
 import { normalizeService } from '../../../src/lib/transit.js';
 import { json, ProviderError, queryLength, run } from '../../_lib/http.js';
-import { busStops, ltaJson } from '../../_lib/lta.js';
+import { busStops, pagedLta } from '../../_lib/lta.js';
 import { STATIC_CACHE_SECONDS } from '../../_lib/cache.js';
 
 function serviceRecord(raw, names) {
@@ -32,11 +32,12 @@ export const onRequestGet = run(async ({ request, env }) => {
   const query = normalizeService(queryLength(url.searchParams.get('search'), 1, 5));
   if (!query) throw new ProviderError('INVALID_INPUT', 'Enter a valid bus service number.', 400);
   const limit = Math.min(20, Math.max(1, Number(url.searchParams.get('limit') ?? 12) || 12));
-  const payload = await ltaJson(`BusServices?ServiceNo=${encodeURIComponent(query)}`, env, 7000, STATIC_CACHE_SECONDS);
+  const payload = await pagedLta('BusServices', env, 500, STATIC_CACHE_SECONDS);
   let stops = [];
   try { stops = await busStops(env); } catch { /* Service metadata remains useful without stop names. */ }
   const names = new Map(stops.map((stop) => [stop.code, stop]));
-  const services = (Array.isArray(payload?.value) ? payload.value : [])
+  const services = payload
+    .filter((item) => normalizeService(item?.ServiceNo) === query)
     .map((item) => serviceRecord(item, names))
     .filter(Boolean)
     .slice(0, limit);

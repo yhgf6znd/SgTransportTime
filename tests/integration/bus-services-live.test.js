@@ -10,9 +10,10 @@ import { clearBusCache } from '../../functions/_lib/lta.js';
 function routeResponse() {
   return {
     value: [
-      { ServiceNo: '36', Operator: 'SBST', Direction: '1', StopSequence: '1', BusStopCode: '01012', Distance: '0' },
-      { ServiceNo: '36', Operator: 'SBST', Direction: '2', StopSequence: '1', BusStopCode: '02020', Distance: '0' },
-      { ServiceNo: '36', Operator: 'SBST', Direction: '1', StopSequence: '2', BusStopCode: '02020', Distance: '1.2' },
+      { ServiceNo: '67', Operator: 'SMRT', Direction: '1', StopSequence: '1', BusStopCode: '99999', Distance: '0' },
+      { ServiceNo: '36A', Operator: 'SBST', Direction: '1', StopSequence: '1', BusStopCode: '01012', Distance: '0' },
+      { ServiceNo: '36A', Operator: 'SBST', Direction: '2', StopSequence: '1', BusStopCode: '02020', Distance: '0' },
+      { ServiceNo: '36A', Operator: 'SBST', Direction: '1', StopSequence: '2', BusStopCode: '02020', Distance: '1.2' },
     ],
   };
 }
@@ -78,7 +79,7 @@ test('service locations remove duplicate coordinates from multiple ETA slots and
   clearBusCache();
   globalThis.fetch = mock.fetch;
   try {
-    const response = await serviceLocations({ request: new Request('https://example.test/api/bus/service-locations?service=36'), env: { LTA_ACCOUNT_KEY: 'test' } });
+    const response = await serviceLocations({ request: new Request('https://example.test/api/bus/service-locations?service=36A'), env: { LTA_ACCOUNT_KEY: 'test' } });
     const body = await response.json();
     assert.equal(response.status, 200);
     assert.equal(body.data.locations.length, 2);

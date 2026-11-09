@@ -73,3 +73,7 @@ Frontend checkpoint (2026-11-09): MRT/LRT cards use destinations such as Joo Koo
 - [x] M27: label bus routes by final stop and remove numeric direction labels from all transport cards
 
 Frontend checkpoint (2026-11-09): bus route cards use final stop names/codes, while MRT/LRT cards use feed destinations; numeric direction IDs remain internal only.
+
+- [x] M28: exact-filter paginated LTA bus service and route catalogues by normalized ServiceNo
+
+Backend checkpoint (2026-11-09): BusServices and BusRoutes are fetched as paginated static datasets, cached per page, and filtered before route metadata or service-wide live fan-out is built.

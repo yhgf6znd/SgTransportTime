@@ -1,5 +1,5 @@
 import { normalizeBusArrival, normalizeService } from '../../src/lib/transit.js';
-import { ltaJson, busRoutes, busStops } from './lta.js';
+import { ltaJson, busRoutes, busStops, pagedLta } from './lta.js';
 
 function stopLocation(stop) {
   return stop && Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude)
@@ -53,11 +53,12 @@ export function routeRecord(raw, names) {
 }
 
 export async function loadBusRoute(service, env) {
-  const payload = await ltaJson(`BusRoutes?ServiceNo=${encodeURIComponent(service)}`, env, 7000, 14_400);
+  const payload = await pagedLta('BusRoutes', env, 500, 14_400);
   let stops = [];
   try { stops = await busStops(env); } catch { /* Route data remains useful without catalogue metadata. */ }
   const names = new Map(stops.map((stop) => [stop.code, stop]));
-  const rows = (Array.isArray(payload?.value) ? payload.value : [])
+  const rows = payload
+    .filter((row) => normalizeService(row?.ServiceNo) === service)
     .map((row) => routeRecord(row, names))
     .filter(Boolean);
   const directions = [...new Set(rows.map((row) => row.direction))].map((direction) => ({
