@@ -53,3 +53,7 @@ Frontend checkpoint (2026-11-09): different destinations on the same line-direct
 Frontend checkpoint (2026-11-09): provider-supplied load and wheelchair flags are rendered as accessible inline badges.
 
 Frontend checkpoint (2026-11-09): refresh requests replace only the arrival results with an accessible loading indicator and leave the page shell/search controls intact.
+
+- [x] M23: display side-view bus type icons alongside vehicle labels
+
+Frontend checkpoint (2026-11-09): bus type indicators use accessible inline SVG silhouettes for single-deck, double-deck, and bendy buses.

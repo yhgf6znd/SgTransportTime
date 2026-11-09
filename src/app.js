@@ -62,6 +62,41 @@ function minutesLabel(item) {
 function loadLabel(code) { return ({ SEA: 'Seats available', SDA: 'Standing available', LSD: 'Limited standing' })[code] ?? null; }
 function vehicleLabel(code) { return ({ SD: 'Single deck', DD: 'Double deck', BD: 'Bendy bus' })[code] ?? null; }
 
+function busTypeIcon(code) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 64 32');
+  svg.setAttribute('class', 'bus-type-icon');
+  svg.setAttribute('aria-hidden', 'true');
+  const shape = (tag, attributes) => {
+    const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, value);
+    svg.append(element);
+  };
+  shape('rect', { x: '3', y: '5', width: '58', height: '21', rx: '4', fill: 'currentColor', opacity: '0.12' });
+  shape('rect', { x: '3', y: '5', width: '58', height: '21', rx: '4', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' });
+  if (code === 'DD') {
+    shape('rect', { x: '8', y: '8', width: '40', height: '5', rx: '1', fill: 'currentColor', opacity: '0.55' });
+    shape('rect', { x: '8', y: '15', width: '32', height: '6', rx: '1', fill: 'currentColor', opacity: '0.55' });
+  } else {
+    shape('rect', { x: '8', y: '9', width: '40', height: '11', rx: '1', fill: 'currentColor', opacity: '0.55' });
+  }
+  shape('rect', { x: '50', y: '9', width: '6', height: '12', rx: '1', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' });
+  if (code === 'BD') shape('line', { x1: '34', y1: '6', x2: '34', y2: '25', stroke: 'currentColor', 'stroke-width': '1.5' });
+  shape('circle', { cx: '15', cy: '27', r: '3', fill: 'currentColor' });
+  shape('circle', { cx: '49', cy: '27', r: '3', fill: 'currentColor' });
+  return svg;
+}
+
+function vehicleMeta(code) {
+  const label = vehicleLabel(code);
+  if (!label) return null;
+  const detail = node('span', undefined, 'eta-detail vehicle-type');
+  detail.setAttribute('aria-label', 'Bus type: ' + label);
+  detail.title = label;
+  detail.append(busTypeIcon(code), node('span', label));
+  return detail;
+}
+
 function mapLink(label, latitude, longitude) {
   if (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude))) return null;
   const link = node('a', label, 'card-link');
@@ -104,8 +139,8 @@ function renderArrivalMeta(arrival) {
   const box = node("div", undefined, "eta-meta");
   const destination = arrival.destinationName ? "To " + arrival.destinationName : arrival.destinationCode ? "To stop " + arrival.destinationCode : null;
   if (destination) box.append(node("span", destination, "eta-detail"));
-  const vehicle = vehicleLabel(arrival.vehicleType);
-  if (vehicle) box.append(node("span", vehicle, "eta-detail"));
+  const vehicle = vehicleMeta(arrival.vehicleType);
+  if (vehicle) box.append(vehicle);
   const monitoring = arrival.monitored === true ? "Live position" : arrival.monitored === false ? "Scheduled estimate" : null;
   if (monitoring) box.append(node("span", monitoring, "eta-detail"));
   if (arrival.estimatedLocation) {
